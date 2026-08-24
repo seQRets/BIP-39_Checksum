@@ -264,19 +264,21 @@
   </div>
 
   <div class="warn">
-    <b>Run this offline for anything real.</b> This page makes no network requests and a
-    Content-Security-Policy blocks them outright — but that protects you from this page only,
-    not from your browser or your machine.
+    <b>Run this offline for anything real.</b> This page never sends anything anywhere, and it
+    tells your browser to refuse if it ever tried — but that only makes this page safe, not the
+    browser it runs in or the computer underneath it.
     <details>
       <summary>How to run it safely — 6 steps</summary>
-      <p><b>Browser extensions are the risk this page cannot touch.</b> An extension can read
-      everything you type here and every phrase generated, and no web page can prevent that.
-      Private browsing is not a reliable defence: Chrome and Firefox disable extensions in
-      private windows by default, but that is a per-extension switch many people turn on — and
-      <b>Safari runs them in Private Browsing by default</b>. Use a browser profile with no
-      extensions installed.</p>
+      <p><b>Browser extensions are the risk this page cannot touch.</b> Anything you have added
+      to your browser — a password manager, an ad blocker, a coupon or shopping tool — can read
+      every word you type here and every phrase this page produces. No web page can stop that,
+      including this one. Private and Incognito windows are not a reliable defence either:
+      Chrome and Firefox switch extensions off in them by default, but it is a per-extension
+      setting many people turn back on — and <b>Safari leaves them running in Private
+      Browsing</b>. Use a separate browser profile with nothing added to it.</p>
       <ol>
-        <li>Download this page and check its checksum against the published one.</li>
+        <li>Save this page to your computer while you are still online. Step 5 is what
+            checks it has not been altered.</li>
         <li>Make a fresh browser profile — Chrome/Edge: profile icon → Add; Firefox:
             <code>about:profiles</code> → Create a New Profile. Install nothing into it,
             sign in to nothing.</li>
@@ -356,17 +358,19 @@
 
       <details>
         <summary>Why can’t I just choose my own last word?</summary>
-        <p>Because it is not free text. The final word carries a checksum over everything
-        before it, so only a small set of words produce a phrase a wallet will accept. Pick
-        any other and the wallet rejects the whole phrase as invalid — which is what this page
-        is for: it works out which words qualify.</p>
+        <p>Because the last word is not a free choice. It carries a short summary — a
+        checksum — of every word before it, so only a small set of words produce a phrase a
+        wallet will accept. Pick any other and the wallet rejects the whole phrase as invalid.
+        Working out which words qualify is what this page is for.</p>
       </details>
 
       <details>
         <summary>How many endings will actually work?</summary>
         <p>Far fewer than the 2048 words in the list, and fewer the longer your phrase. The
-        final word carries the last few entropy bits <b>plus the entire checksum</b>, so the
-        longer the phrase, the more checksum that one word has to hold.</p>
+        last word has to carry the final scraps of your phrase’s randomness <b>and the whole
+        checksum</b>, so the longer the phrase, the more of that one word is already spoken
+        for. The table counts the checksum in bits, where one bit is a single yes-or-no
+        answer.</p>
         <div class="scroll"><table>
           <tr><th>Phrase</th><th>You supply</th><th>Checksum bits</th><th>Valid endings</th></tr>
           <tr><td class="k">12 words</td><td>11</td><td class="v">4</td><td class="v">128</td></tr>
@@ -379,10 +383,12 @@
 
       <details>
         <summary>Why do longer phrases give fewer choices?</summary>
-        <p>Every phrase sets aside a fixed number of bits for its checksum, and the last word is
-        where they live. A 12-word phrase sets aside 4 of them, leaving 7 bits free — that is
-        2<sup>7</sup> = 128 endings. A 24-word phrase sets aside 8, leaving only 3 free, so just
-        2<sup>3</sup> = 8 words can finish it. Each extra checksum bit halves your options.</p>
+        <p>Because a longer phrase spends more of its last word on the checksum, leaving less
+        room for choice. Picking one word out of 2048 takes 11 yes-or-no answers — a bit is one
+        such answer. In a 12-word phrase the checksum claims 4 of the last word’s 11, leaving 7
+        free, and 7 yes-or-no answers cover 128 endings. In a 24-word phrase the checksum claims
+        8 and leaves only 3, so just 8 words can finish it. Every extra answer the checksum
+        takes halves what is left to you.</p>
       </details>
 
       <details>
@@ -400,62 +406,65 @@
         about the rest.</p>
       </details>
 
-      <div class="grp2">Randomness and entropy</div>
+      <div class="grp2">Randomness</div>
 
       <details>
         <summary>Where does the randomness on this page come from?</summary>
-        <p>From <code>crypto.getRandomValues</code>, the browser’s cryptographic generator.
-        There is no <code>Math.random</code> anywhere in this file. The word list holds
-        2048 = 2<sup>11</sup> entries, so eleven raw bits pick a word outright: the code masks
-        off those bits rather than folding a bigger number down with a remainder, which means
-        every word is exactly equally likely — no bias to correct and no retry loop that could
-        introduce one.</p>
+        <p>From the random number generator your browser provides for security work,
+        <code>crypto.getRandomValues</code>. The everyday one, <code>Math.random</code>, is
+        predictable enough that it should never choose a seed phrase, and it appears nowhere in
+        this file. The word list holds exactly 2048 words, a round number in binary, so each
+        draw lands on a word directly instead of being squeezed down to fit. That matters:
+        squeezing is what makes some words come up slightly more often than others. Here every
+        word is exactly as likely as every other.</p>
       </details>
 
       <details>
         <summary>What does the entropy read-out actually measure?</summary>
-        <p>Not entropy — nothing can measure the entropy of a phrase. Entropy is a property of
-        <em>how</em> words were chosen, not of the words themselves, so a genuine random draw
-        can look terrible and a hand-picked one can look fine. What it does instead is look for
-        the fingerprints of hand-picking — repetition, wordlist order, words bunched into one
-        stretch of the list — and report the search space an attacker would face having spotted
-        them. Treat it as an upper bound, never as proof your words are random.</p>
+        <p>Not entropy — nothing can. Entropy is about <em>how</em> your words were chosen, not
+        about the words themselves, so a genuinely random set can look terrible and a hand-picked
+        one can look fine. What it actually does is hunt for the fingerprints of hand-picking:
+        the same word repeated, words sitting in wordlist order, words bunched into one short
+        stretch of the list. Then it works out how many phrases someone would still have to try
+        if they noticed the same pattern. Treat that as the best case, never as proof your words
+        are random.</p>
       </details>
 
       <details>
         <summary>Why do 23 identical words score only 11 bits?</summary>
-        <p>Because “the same word 23 times” is only 2048 possible phrases, one per word in the
-        list, and log<sub>2</sub>(2048) = 11. Repeating a word more times adds nothing at all —
-        every word after the first is already determined. A 23-word repeat is exactly as weak as
-        an 11-word repeat, which is the clearest demonstration there is that length is not
-        entropy.</p>
+        <p>Because “the same word 23 times” is only 2048 different phrases — one for each word
+        in the list — and singling out one in 2048 takes 11 yes-or-no answers. Repeating the word
+        more times adds nothing at all: every word after the first is already decided. A 23-word
+        repeat is exactly as weak as an 11-word repeat, which is the clearest demonstration there
+        is that a long phrase is not automatically a strong one.</p>
       </details>
 
       <details>
         <summary>Is a phrase generated here as good as one from a hardware wallet?</summary>
-        <p>The randomness is of the same quality: both draw from a cryptographic generator, and
-        24 random words is 256 bits either way. What differs is the machine. A hardware wallet
-        builds the phrase on a device that does one job and never hands it to an operating
-        system running everything else you have installed. A browser on an ordinary computer
-        cannot make that promise, which is why the guidance above is worth following.</p>
+        <p>The randomness is the same quality: both draw from a proper cryptographic generator,
+        and 24 random words is 24 random words either way. What differs is the machine. A
+        hardware wallet builds the phrase on a device that does one job and never hands it to a
+        computer running everything else you have installed. A browser on an ordinary computer
+        cannot make that promise, which is why the steps above are worth following.</p>
       </details>
 
       <div class="grp2">Trust and privacy</div>
 
       <details>
         <summary>Does anything I type here leave my computer?</summary>
-        <p>No. The page makes no network requests of any kind, and a Content-Security-Policy
-        blocks them outright — no fonts, scripts, styles or images load from anywhere. Nothing
-        is stored or logged. That covers this page only, though: a browser extension can read
-        what you type here, and no web page can stop it.</p>
+        <p>No. The page never sends anything anywhere, and it tells your browser to block the
+        attempt if it ever tried — nothing at all is fetched from the internet, not a typeface,
+        not an image, not a line of code. Nothing is saved or logged either. That covers this
+        page only, though: a browser extension can read what you type here, and no web page can
+        stop it.</p>
       </details>
 
       <details>
         <summary>How do I know this page has not been altered?</summary>
-        <p>Press <b>Verify this page</b>. It hashes its own built-in word list and compares the
-        result against the official BIP-39 list, and works out the endings for nine examples
-        whose correct answers are published in the standard. Change a single word in the
-        embedded list and the check fails, showing a different hash.</p>
+        <p>Press <b>Verify this page</b>. It takes a fingerprint of its own built-in word list
+        and checks that against the official BIP-39 one, then works out the endings for nine
+        example phrases whose correct answers are published in the standard. Change a single word
+        in the built-in list and the fingerprint comes out different and the check fails.</p>
       </details>
 
     </div>
