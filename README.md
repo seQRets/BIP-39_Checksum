@@ -5,7 +5,7 @@ Find every valid final word for an incomplete BIP-39 seed phrase.
 A single self-contained HTML file. No build step, no dependencies, no network —
 open it and it works, online or off.
 
-**Live:** _not yet published — see [Deploying](#deploying)_
+**Live:** <https://bip39checksum.com>
 
 ## What it does
 
