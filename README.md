@@ -9,10 +9,10 @@ open it and it works, online or off.
 
 ## What it does
 
-The last word of a seed phrase is not free. It carries the final few bits of
-entropy *plus the entire checksum*, so the checksum pins down all but a fixed
-number of endings. Give it the words you have and it returns every ending that
-produces a valid phrase.
+The last word of a seed phrase is not a free choice. It has to carry the final
+scraps of the phrase's randomness *plus the whole checksum*, which pins it down
+to a fixed, small number of possibilities. Give the page the words you have and
+it returns every ending that produces a valid phrase.
 
 | Phrase | You supply | Checksum bits | Valid endings |
 |-------:|-----------:|--------------:|--------------:|
@@ -22,16 +22,17 @@ produces a valid phrase.
 | 21 | 20 | 7 | 16 |
 | 24 | 23 | 8 | 8 |
 
-**Generate at random** fills the box with 11, 14, 17, 20 or 23 words drawn from
-`crypto.getRandomValues`. Combined with a random ending, that produces a fully
-valid phrase at the full entropy for its length — 128 bits for 12 words, 256
-for 24.
+**Generate at random** fills the box with 11, 14, 17, 20 or 23 words from the
+browser's random number generator, the one built for security work
+(`crypto.getRandomValues`). Combined with a random ending that gives a fully
+valid phrase carrying all the randomness its length allows — 128 bits for 12
+words, 256 for 24.
 
 Click any candidate to assemble the full phrase, or **Pick at random** to have
-one chosen for you. That pick uses `crypto.getRandomValues`, never
-`Math.random` — though note it only contributes the last few bits of entropy
-(7 for a 12-word phrase, 3 for a 24-word one). The words you supply carry the
-rest, so a random ending cannot rescue a badly chosen prefix.
+one chosen for you. That pick uses the same generator, never `Math.random` —
+but it only contributes the last few bits (7 for a 12-word phrase, 3 for a
+24-word one). The words you supply carry the rest, so a random ending cannot
+rescue a badly chosen prefix.
 
 The page follows your system light/dark setting, and the toggle at the top
 right overrides it. The choice is remembered in `localStorage`.
@@ -40,11 +41,12 @@ right overrides it. The choice is remembered in `localStorage`.
 
 For any phrase holding real funds: save the page, disconnect, then open it.
 
-The page makes no network requests and a `Content-Security-Policy` meta tag
-blocks them outright (`default-src 'none'`) — no fonts, scripts, styles, or
-images load from anywhere. But that protects you from *this page only*, not
-from your browser or your machine. A badge at the top tells you whether you
-are currently online.
+The page never sends anything anywhere, and it tells your browser to refuse if
+it ever tried — nothing is fetched from the internet at all, not a typeface, not
+an image, not a line of code. (In technical terms: a `Content-Security-Policy`
+meta tag set to `default-src 'none'`.) But that only makes *this page* safe, not
+your browser or your computer. A badge at the top tells you whether you are
+currently online.
 
 If your phrase holds real money, do not just click the live link and start
 typing. Work through this once; it takes about ten minutes.
@@ -52,9 +54,9 @@ typing. Work through this once; it takes about ten minutes.
 ### First, the part most people get wrong: browser extensions
 
 A browser extension can read everything on every page you open — including the
-words you type into this one and any phrase it generates for you. The page's
-Content-Security-Policy does not stop this. **Nothing a web page can do stops
-this.** An extension is part of your browser, not part of the page.
+words you type into this one and any phrase it generates for you. Nothing this
+page does stops it. **Nothing any web page can do stops it.** An extension is
+part of your browser, not part of the page.
 
 This is not hypothetical. Extensions get sold, get taken over, and get updated
 silently. A password manager, an ad blocker, a dark-mode theme, a coupon finder
@@ -76,7 +78,16 @@ control you are relying on.
 
 ### Step 1 — Download the file, while still online
 
-Save `index.html` from the repository. Then check it is what you expect:
+Save `index.html` from the repository.
+
+There is no published fingerprint to compare it against — this project has no
+tagged releases — so taking a hash of the file proves nothing on its own here.
+The check that does the work is **Verify this page** in step 5: it compares the
+page's built-in word list against the official BIP-39 one, which is what catches
+a tampered copy.
+
+You can still take a fingerprint now and keep it, so you can tell whether a copy
+you download later has changed:
 
 ```bash
 # macOS
@@ -90,9 +101,6 @@ sha256sum ~/Downloads/index.html
 # Windows (PowerShell)
 Get-FileHash $HOME\Downloads\index.html -Algorithm SHA256
 ```
-
-Compare the result with the checksum published alongside the release. If they
-differ, stop — do not open the file.
 
 ### Step 2 — Get a browser with nothing installed in it
 
@@ -149,16 +157,19 @@ Both work with no network. Everything on the page does.
 
 Honest limits, none of which are fixable in a web page:
 
-- **Your clipboard.** Copying a phrase makes it readable by every running app.
-  Clipboard managers write history to disk; macOS Universal Clipboard syncs it
-  to your other devices. The page warns at the point of use. Type it by hand.
-- **Browser extensions.** CSP does not restrain extension content scripts. Any
-  extension with host access can read a generated phrase out of the DOM.
-- **Memory.** JavaScript cannot reliably zero a string. The phrase persists in
-  the DOM, in the textarea's undo buffer, and in browser memory until the tab
-  closes — and possibly in swap.
-- **A hosted copy.** Over GitHub Pages you are trusting whatever is served that
-  visit. Download the file, verify it, and run it offline for anything real.
+- **Your clipboard.** Copying a phrase makes it readable by every program running
+  on your computer. Apps that keep a clipboard history save their own copy to
+  disk, and a Mac passes the clipboard to your iPhone and iPad. The page warns
+  you at the point of use. Write it down by hand.
+- **Browser extensions.** Nothing a web page can do keeps an extension out. Any
+  extension allowed to run on a page can read a generated phrase straight off it.
+- **Memory.** A web page cannot reliably erase what it has held. The phrase stays
+  in the page, in the text box's undo history, and in the browser's memory until
+  the tab is closed — and possibly in a file on disk, if your computer ran short
+  of memory and parked some of it there.
+- **A hosted copy.** Loading this over the web means trusting whatever is served
+  to you on that visit. Download the file, check it, and run it offline for
+  anything real.
 - **The machine itself.** An offline page on a compromised computer is not safe.
 
 ## Verify before you trust it

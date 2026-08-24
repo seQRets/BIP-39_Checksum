@@ -313,8 +313,9 @@
       </select>
       <button id="gen">Generate at random</button>
     </div>
-    <div class="hint">⌘/Ctrl + Enter to calculate. Generated words come from
-      <code>crypto.getRandomValues</code>. Nothing is stored, logged, or sent.</div>
+    <div class="hint">⌘/Ctrl + Enter to calculate. Generated words come from your browser’s
+      random number generator, the one built for security work. Nothing is saved, recorded or
+      sent anywhere.</div>
     <div class="status" id="st"></div>
     <div class="meter" id="meter" style="display:none">
       <div class="mrow">
@@ -344,9 +345,9 @@
       <button id="copyfull" style="display:none">Copy full phrase</button>
     </div>
     <div class="hint" id="cliphint" style="display:none">⚠︎ Copying a full phrase puts it on
-      the system clipboard, where any running app can read it — clipboard managers keep a
-      history on disk, and macOS Universal Clipboard syncs it to your other devices. Type it
-      out by hand instead if it holds real funds.</div>
+      your clipboard, where any program running on your computer can read it. Apps that keep a
+      clipboard history save their own copy, and a Mac will pass it to your iPhone and iPad.
+      Write it out by hand instead if it holds real money.</div>
     <div class="hint" id="randnote" style="display:none"></div>
   </div>
 
@@ -555,7 +556,7 @@ async function calculate() {
   }
   if (!globalThis.crypto || !crypto.subtle) {
     $("st").className = "status bad";
-    $("st").textContent = "✕  crypto.subtle unavailable — serve this over http://localhost instead of opening the file directly.";
+    $("st").textContent = "✕  This browser will not do the maths from a file opened directly. Serve the page over http://localhost instead.";
     return;
   }
   $("st").className = "status"; $("st").textContent = "Working…";
@@ -883,9 +884,10 @@ $("rand").onclick = () => {
   const tail = 11 - CFG[prefix.length].cs;
   $("randnote").style.display = "block";
   $("randnote").textContent =
-    `Picked “${current[i]}” with crypto.getRandomValues — not Math.random. `
-    + `Choosing the ending this way adds ${tail} bits of entropy; the ${prefix.length} words `
-    + `you supplied carry the other entropy. Make sure they are selected randomly.`;
+    `Picked “${current[i]}” with your browser’s random number generator, the one built for `
+    + `security work. Letting it choose the ending is worth ${tail} yes-or-no answers of `
+    + `randomness — all the rest has to come from the ${prefix.length} words you supplied, so `
+    + `those need to have been chosen at random too.`;
 };
 
 const copy = t => navigator.clipboard?.writeText(t).catch(() => {});
