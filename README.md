@@ -350,6 +350,22 @@ Say what the tool is for. A name containing `bip39` or `seed` tells a visitor
 they are in the right place; a generic one gives them nothing to check against,
 which is exactly the confusion typosquatting depends on.
 
+## Reporting a problem
+
+Security contact details are published at
+[`/.well-known/security.txt`](https://bip39checksum.com/.well-known/security.txt)
+per [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116). Preferred route is a
+[private vulnerability report](https://github.com/seQRets/BIP-39_Checksum/security/advisories/new)
+on this repository; `security@seqrets.app` also reaches us.
+
+There is no backend, no database and no network call, so the findings that
+matter most are a fault in the checksum or entropy calculations, anything that
+causes the page to make a network request, and anything that weakens the
+randomness used to generate words.
+
+The `Expires` field in that file has to be renewed before **1 August 2027** —
+an expired `security.txt` is treated as invalid.
+
 ## Provenance and licence
 
 Written from the BIP-39 specification, which is itself MIT licensed. The
