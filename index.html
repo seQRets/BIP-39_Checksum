@@ -198,7 +198,9 @@
     font-size:.92rem;color:var(--muted);margin-bottom:1.6rem}
   .warn b{color:var(--ink)}
   .qa details{margin:0;border-bottom:1px solid var(--line2)}
-  .qa details:last-child{border-bottom:none}
+  /* No rule directly above a group heading — the heading's own border-top is the
+     divider there, and both together read as a doubled line. */
+  .qa details:last-child,.qa details:has(+ .grp2){border-bottom:none}
   .qa summary{padding:.85rem 0;font-size:.95rem;font-weight:600;letter-spacing:0;
     text-transform:none;color:var(--ink)}
   .qa summary:hover{color:var(--accent-ink)}
