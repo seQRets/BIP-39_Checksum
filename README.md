@@ -1,0 +1,361 @@
+# BIP-39 Last Word
+
+Find every valid final word for an incomplete BIP-39 seed phrase.
+
+A single self-contained HTML file. No build step, no dependencies, no network —
+open it and it works, online or off.
+
+**Live:** _not yet published — see [Deploying](#deploying)_
+
+## What it does
+
+The last word of a seed phrase is not free. It carries the final few bits of
+entropy *plus the entire checksum*, so the checksum pins down all but a fixed
+number of endings. Give it the words you have and it returns every ending that
+produces a valid phrase.
+
+| Phrase | You supply | Checksum bits | Valid endings |
+|-------:|-----------:|--------------:|--------------:|
+| 12 | 11 | 4 | 128 |
+| 15 | 14 | 5 | 64 |
+| 18 | 17 | 6 | 32 |
+| 21 | 20 | 7 | 16 |
+| 24 | 23 | 8 | 8 |
+
+**Generate at random** fills the box with 11, 14, 17, 20 or 23 words drawn from
+`crypto.getRandomValues`. Combined with a random ending, that produces a fully
+valid phrase at the full entropy for its length — 128 bits for 12 words, 256
+for 24.
+
+Click any candidate to assemble the full phrase, or **Pick at random** to have
+one chosen for you. That pick uses `crypto.getRandomValues`, never
+`Math.random` — though note it only contributes the last few bits of entropy
+(7 for a 12-word phrase, 3 for a 24-word one). The words you supply carry the
+rest, so a random ending cannot rescue a badly chosen prefix.
+
+The page follows your system light/dark setting, and the toggle at the top
+right overrides it. The choice is remembered in `localStorage`.
+
+## Running it safely — step by step
+
+For any phrase holding real funds: save the page, disconnect, then open it.
+
+The page makes no network requests and a `Content-Security-Policy` meta tag
+blocks them outright (`default-src 'none'`) — no fonts, scripts, styles, or
+images load from anywhere. But that protects you from *this page only*, not
+from your browser or your machine. A badge at the top tells you whether you
+are currently online.
+
+If your phrase holds real money, do not just click the live link and start
+typing. Work through this once; it takes about ten minutes.
+
+### First, the part most people get wrong: browser extensions
+
+A browser extension can read everything on every page you open — including the
+words you type into this one and any phrase it generates for you. The page's
+Content-Security-Policy does not stop this. **Nothing a web page can do stops
+this.** An extension is part of your browser, not part of the page.
+
+This is not hypothetical. Extensions get sold, get taken over, and get updated
+silently. A password manager, an ad blocker, a dark-mode theme, a coupon finder
+— any of them can read your seed phrase out of the page.
+
+**Private browsing is not a reliable defence against this**, and the details
+differ by browser:
+
+| Browser | Extensions in private windows |
+|---|---|
+| Chrome / Edge | Off by default, but each extension has an *Allow in Incognito* switch that many people turn on |
+| Firefox | Off by default, same per-extension *Run in Private Windows* opt-in |
+| **Safari** | **Run in Private Browsing by default** |
+
+So on a Mac, opening a Private Window in Safari gives you no protection from
+extensions at all. Use a browser profile that has **no extensions installed**.
+That is unconditionally safe; private browsing on top of it is a bonus, not the
+control you are relying on.
+
+### Step 1 — Download the file, while still online
+
+Save `index.html` from the repository. Then check it is what you expect:
+
+```bash
+# macOS
+shasum -a 256 ~/Downloads/index.html
+
+# Linux
+sha256sum ~/Downloads/index.html
+```
+
+```powershell
+# Windows (PowerShell)
+Get-FileHash $HOME\Downloads\index.html -Algorithm SHA256
+```
+
+Compare the result with the checksum published alongside the release. If they
+differ, stop — do not open the file.
+
+### Step 2 — Get a browser with nothing installed in it
+
+Pick whichever is easier. Do this **before** you disconnect.
+
+- **A fresh profile in a browser you already have** (no download needed):
+  - Chrome/Edge: profile icon, top right → **Add** → *Continue without an account*
+  - Firefox: type `about:profiles` in the address bar → **Create a New Profile**
+- **Or a second browser** you do not use day to day — install Firefox if you
+  normally use Chrome, or vice versa.
+
+Either way you get a browser with zero extensions and no sign-in. Do not sign
+in to it, and do not install anything into it.
+
+### Step 3 — Disconnect the computer
+
+- **macOS:** Control Centre → Wi-Fi **off**. Unplug any Ethernet or dock cable.
+- **Windows:** Action Centre → **Airplane mode** on. Unplug Ethernet.
+- **Linux:** network menu → turn networking off, or `nmcli networking off`
+
+Turn off phone tethering and Bluetooth too, if you use them.
+
+### Step 4 — Open the file
+
+Open a private window in the extension-free browser — <kbd>Cmd/Ctrl</kbd> +
+<kbd>Shift</kbd> + <kbd>N</kbd> in Chrome, Edge and Safari, <kbd>Cmd/Ctrl</kbd>
++ <kbd>Shift</kbd> + <kbd>P</kbd> in Firefox — then drag `index.html` onto the
+window, or press <kbd>Cmd/Ctrl</kbd> + <kbd>O</kbd> and pick it.
+
+### Step 5 — Let the page confirm your setup
+
+Two checks before you type anything real:
+
+1. The badge near the top should read **"Offline — no route out"** in green. If
+   it still says *Online*, something is still connected — go back to step 3.
+2. Press **Verify this page**. It must say **12 of 12 checks passed**. That
+   confirms the calculator gets the right answer on example phrases whose
+   correct answers are published in the BIP-39 standard, and that its built-in
+   word list has not been altered. It checks the *page* — it can tell you
+   nothing about your computer.
+
+Both work with no network. Everything on the page does.
+
+### Step 6 — When you are finished
+
+- **Do not use the copy buttons** for a real phrase. Write it down by hand.
+- Close the private window, then **quit the browser completely**
+  (<kbd>Cmd</kbd> + <kbd>Q</kbd> on macOS). Closing a tab does not clear memory;
+  quitting does.
+- Reconnect only after the browser has fully quit.
+- Do not screenshot the phrase. Screenshots sync to the cloud.
+
+## What this page cannot protect you from
+
+Honest limits, none of which are fixable in a web page:
+
+- **Your clipboard.** Copying a phrase makes it readable by every running app.
+  Clipboard managers write history to disk; macOS Universal Clipboard syncs it
+  to your other devices. The page warns at the point of use. Type it by hand.
+- **Browser extensions.** CSP does not restrain extension content scripts. Any
+  extension with host access can read a generated phrase out of the DOM.
+- **Memory.** JavaScript cannot reliably zero a string. The phrase persists in
+  the DOM, in the textarea's undo buffer, and in browser memory until the tab
+  closes — and possibly in swap.
+- **A hosted copy.** Over GitHub Pages you are trusting whatever is served that
+  visit. Download the file, verify it, and run it offline for anything real.
+- **The machine itself.** An offline page on a compromised computer is not safe.
+
+## Verify before you trust it
+
+Don't take the above on faith. Two checks, both quick:
+
+**1. Press "Verify this page".** It works out the endings for nine example
+phrases whose correct answers are published in the BIP-39 standard, and confirms
+this page produces each one — with the right number of options and no
+duplicates. It then hashes the built-in word list and compares it against the
+official file, and checks that a real cryptographic RNG is present. It should
+read **12 of 12 checks passed**.
+
+By default it shows three lines — the calculations, the word list, the random
+number generator — each either pass or fail. *Show all 12 checks* expands the
+full breakdown for anyone who wants it, and opens by itself if anything failed.
+
+That wordlist check is the one verification that survives someone tampering with
+a hosted copy: swapping a single word in the embedded list drops the result to
+6 of 12 and prints a different hash.
+
+The tenth check is a regression test. A tempting way to write this calculation
+is to compare `idx.toString(2)` against a zero-padded 11-bit string —
+JavaScript drops leading zeros, so only indices ≥ 1024 ever produce an
+11-character string, every word before `length` (index 1024) silently becomes
+unreachable, and you are shown half the real answers, all from the back of the
+wordlist. "Verify this page" checks that results reach below index 1024.
+
+**2. Check the wordlist.** The embedded list is the official BIP-39 English
+wordlist, verbatim:
+
+```
+curl -s https://raw.githubusercontent.com/bitcoin/bips/master/bip-0039/english.txt | shasum -a 256
+# 2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda
+```
+
+Hashing uses the browser's native `crypto.subtle` — no hand-rolled SHA-256.
+
+## The entropy meter
+
+Below the input box is a read-out of how much entropy your words carry.
+
+**It cannot measure entropy directly, and neither can anything else.** Entropy
+is a property of the *process* that chose the words, not of the words
+themselves — a genuine random draw can look terrible, and a hand-picked phrase
+can look fine. Anything claiming to score the randomness of a specific string
+is lying to you.
+
+What it does instead is look for the fingerprints of hand-picking, and ask: if
+an attacker noticed this pattern and searched only phrases matching it, how
+much work would be left? It checks for words in wordlist order, repetition
+beyond what chance explains, words drawn from one narrow stretch of the list,
+too few distinct first letters, and neighbouring words. The result is an *upper
+bound* on your entropy — never a proof that it is high.
+
+Calibration, measured over 4,000 trials per phrase length:
+
+| | 11 | 14 | 17 | 20 | 23 words |
+|---|---|---|---|---|---|
+| False alarms on genuine random draws | 0.10% | 0.17% | 0.17% | 0.28% | 1.07% |
+
+Every hand-picking pattern tested is flagged: eleven identical words (11/121
+bits — an attacker still has to guess *which* word), two words alternating
+(22/121), the first 11 words of the list (24/121), words confined to a
+150-word window (90/121), and picking off the top 64 (73/121). A random
+selection that was merely *sorted* scores 99/121 — correctly, since sorting
+costs about log2(11!) ≈ 25 bits and no more.
+
+Each finding names one root cause rather than every consequence of it.
+Eleven identical words trip the repetition, ordering, range, first-letter and
+neighbour checks all at once; reporting all five would be noise, so it reports
+"every word is the same" and stops.
+
+Note that a single repeated word is **not** flagged. In 23 draws from 2048 a
+repeat happens about 12% of the time by chance; treating that as suspicious
+would cry wolf on one good phrase in eight.
+
+## How the randomness works
+
+Both random paths use `crypto.getRandomValues` — the browser's CSPRNG. There is
+no `Math.random()` call anywhere in the file.
+
+Neither path uses modulo or rejection sampling, because neither needs to. The
+wordlist is 2048 = 2¹¹ entries, so eleven raw bits index it directly:
+
+```js
+const buf = new Uint16Array(count);
+crypto.getRandomValues(buf);
+return [...buf].map(v => WORDS[v & (WORDS.length - 1)]);   // low 11 bits
+```
+
+Masking a power-of-two range is exactly uniform, with no biased branch and no
+loop that could silently never run. Candidate counts are also powers of two
+(8/16/32/64/128), so the picker masks the same way. Both functions **assert**
+their power-of-two precondition and throw rather than generate if it fails.
+
+Measured over 200,000 generated words (2.2 million bits):
+
+| Test | Result | |
+|---|---|---|
+| Uniformity over 2048 indices | χ² = 2117.8, df = 2047 (p<.01 ≈ 2201) | pass |
+| Per-bit balance, all 11 bits | max deviation 0.20 percentage points | pass |
+| Serial correlation, adjacent words | r = −0.0016 | pass |
+| Runs test, LSB stream | z = −0.17 | pass |
+| Independence of separate calls | 0/500 positions matched | pass |
+
+Generate → calculate → pick produces phrases that validate against an
+independent implementation: 60/60 across all five lengths. The construction is
+sound because a prefix of a uniform bit string is uniform — 11 random words are
+121 uniform bits, and picking uniformly among the 128 candidates supplies the
+remaining 7, for the full 128 bits a 12-word phrase should carry.
+
+## Development
+
+There is no build step. Edit `index.html` and reload.
+
+Opening the file directly works in current Chrome, Firefox, and Safari
+(`file://` is a secure context, so `crypto.subtle` is available). If your
+browser disagrees, the page says so; serve it instead:
+
+```
+python3 -m http.server 8000
+```
+
+## Deploying
+
+Any static host. For GitHub Pages: **Settings → Pages → Source: Deploy from a
+branch → `main` / `(root)`**.
+
+### Custom domain
+
+Add the domain under **Settings → Pages → Custom domain**. That writes a
+`CNAME` file into the repository root — **commit it**. If a later push does not
+contain it, the custom domain silently unbinds and the site falls back to
+`username.github.io`.
+
+At your DNS provider, for an apex domain (`example.com`) create four A records:
+
+```
+185.199.108.153
+185.199.109.153
+185.199.110.153
+185.199.111.153
+```
+
+For a subdomain (`www.example.com`) create one CNAME record pointing at
+`USERNAME.github.io`. Setting up both, with `www` redirecting to the apex, means
+either form reaches the site.
+
+Then tick **Enforce HTTPS**. GitHub issues a free Let's Encrypt certificate for
+every public Pages site, custom domains included — nothing to buy, no plan to
+upgrade. A `username.github.io` site is served over HTTPS from the start; on a
+custom domain the checkbox stays greyed out until the certificate has been
+issued, usually within the hour.
+
+If it stays greyed out, the certificate is failing to issue. Almost always one
+of these:
+
+- **Cloudflare proxying.** The orange cloud is on by default and hides your DNS
+  from GitHub, so the challenge used to issue the certificate never completes.
+  Set every record pointing at GitHub to *DNS only* (grey cloud), and leave it
+  grey until the certificate has been issued.
+- **A CAA record.** If the domain has any CAA records at all, one of them must
+  name `letsencrypt.org`, or no certificate can be issued.
+- **Stray records.** Any extra A or CNAME on the same name pointing elsewhere
+  will fail the check.
+
+Worth getting right rather than leaving for later: over plain HTTP anyone on the
+network path can substitute their own copy of this page — which here means their
+own word list, or their own generator.
+
+Verify with:
+
+```
+dig +short EXAMPLE.COM
+```
+
+### Choosing a domain, for this kind of tool
+
+Seed-phrase tools are a standing typosquatting target: attackers register
+lookalike domains and serve a version that quietly sends the phrase somewhere.
+Two consequences worth weighing before you buy.
+
+Prefer a name that is hard to mistype over one that is merely short. Every
+plausible misspelling is a domain someone else can register and point at a
+malicious copy of this page.
+
+Say what the tool is for. A name containing `bip39` or `seed` tells a visitor
+they are in the right place; a generic one gives them nothing to check against,
+which is exactly the confusion typosquatting depends on.
+
+## Provenance and licence
+
+Written from the BIP-39 specification, which is itself MIT licensed. The
+wordlist is taken from [`bitcoin/bips`](https://github.com/bitcoin/bips)
+(MIT), not from any third-party implementation.
+
+Copyright © 2026 Toothjockey LLC. Released under the MIT Licence — see
+[LICENSE](LICENSE). MIT means anyone may use, modify and redistribute this,
+including commercially, provided the copyright notice travels with it.

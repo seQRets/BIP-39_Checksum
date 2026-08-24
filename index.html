@@ -1,0 +1,889 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<meta name="description" content="Find every valid final word for an incomplete BIP-39 seed phrase. Self-contained, offline, no network.">
+<title>BIP-39 · Last Word</title>
+<style>
+  :root{
+    color-scheme:dark;
+    --bg:#000; --panel:rgba(255,255,255,0.04); --panel2:rgba(255,255,255,0.02);
+    --line:rgba(255,255,255,0.09); --line2:rgba(255,255,255,0.06);
+    --ink:#F4F6FB; --muted:rgba(244,246,251,0.46); --dim:rgba(244,246,251,0.28);
+    --orange:#F7931A; --gold:#F0B429; --green:#36D399; --red:#F87171;
+    /* Text-weight variants. The deck orange only reaches 2.2:1 on a light
+       ground, so light mode swaps in a deeper burnt orange for small text
+       while keeping #F7931A for rules, borders and fills. */
+    --accent-ink:#F7931A; --green-ink:#36D399; --red-ink:#F87171;
+    --code-ink:#F0B429; --code-bg:rgba(240,180,41,.08);
+    --field:rgba(0,0,0,.35); --grid:rgba(247,147,26,0.025); --glow:rgba(247,147,26,0.13);
+    --shadow:none;
+    --sans:-apple-system,system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;
+  }
+  /* Follows the OS unless the toggle has pinned a theme via data-theme. */
+  @media (prefers-color-scheme:light){ :root:not([data-theme="dark"]){
+    color-scheme:light;
+    --bg:#FAF8F5; --panel:#FFFFFF; --panel2:#F7F5F1;
+    --line:rgba(27,24,20,0.13); --line2:rgba(27,24,20,0.08);
+    --ink:#1B1814; --muted:#57514A; --dim:#7D766B;
+    --accent-ink:#9C5206; --green-ink:#0F7A45; --red-ink:#B3261E;
+    --code-ink:#8A5A08; --code-bg:rgba(240,180,41,.16);
+    --field:#FFFFFF; --grid:rgba(247,147,26,0.055); --glow:rgba(247,147,26,0.10);
+    --shadow:0 1px 2px rgba(27,24,20,.04),0 8px 24px rgba(27,24,20,.05);
+  } }
+  :root[data-theme="light"]{
+    color-scheme:light;
+    --bg:#FAF8F5; --panel:#FFFFFF; --panel2:#F7F5F1;
+    --line:rgba(27,24,20,0.13); --line2:rgba(27,24,20,0.08);
+    --ink:#1B1814; --muted:#57514A; --dim:#7D766B;
+    --accent-ink:#9C5206; --green-ink:#0F7A45; --red-ink:#B3261E;
+    --code-ink:#8A5A08; --code-bg:rgba(240,180,41,.16);
+    --field:#FFFFFF; --grid:rgba(247,147,26,0.055); --glow:rgba(247,147,26,0.10);
+    --shadow:0 1px 2px rgba(27,24,20,.04),0 8px 24px rgba(27,24,20,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);
+       line-height:1.5;min-height:100vh;position:relative;overflow-x:hidden}
+  /* faint orange graph paper, lifted from the deck */
+  body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(var(--grid) 1px,transparent 1px),
+                     linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:80px 80px}
+  /* the bottom-left ember */
+  body::after{content:'';position:fixed;left:-260px;bottom:-320px;width:900px;height:900px;
+    background:radial-gradient(circle,var(--glow),transparent 62%);
+    pointer-events:none;z-index:0}
+  .topbar{position:fixed;top:0;left:0;right:0;height:6px;
+    background:linear-gradient(90deg,var(--orange),var(--gold));z-index:10}
+  main{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:5rem 1.5rem 4rem}
+
+  /* ---- kicker + hero ---- */
+  .topline{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.4rem}
+  .kicker{display:flex;align-items:center;gap:14px;min-width:0}
+  #theme{flex:none;padding:.45rem .8rem;font-size:.68rem}
+  .kicker .dash{width:52px;height:2px;background:var(--orange);flex:none}
+  .kicker .label{font-size:.75rem;font-weight:700;letter-spacing:.32em;color:var(--accent-ink)}
+  h1{font-size:clamp(2.1rem,5.5vw,3.5rem);font-weight:800;letter-spacing:-.02em;
+     line-height:1.04;margin-bottom:1rem}
+  h1 em{color:var(--accent-ink);font-style:normal}
+  .dek{font-size:clamp(1rem,2vw,1.2rem);color:var(--muted);max-width:44rem;line-height:1.45}
+
+  .stats{display:flex;gap:clamp(2rem,6vw,4.5rem);margin:2.6rem 0 2.2rem;flex-wrap:wrap}
+  .stat .num{font-size:clamp(1.7rem,4vw,2.4rem);font-weight:800;letter-spacing:-.02em;line-height:1}
+  .stat .num span{color:var(--accent-ink)}
+  .stat .lab{font-size:.7rem;color:var(--dim);letter-spacing:.14em;font-weight:600;
+             margin-top:.5rem;text-transform:uppercase}
+
+  /* ---- cards ---- */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;
+        padding:clamp(1.4rem,3vw,2.1rem);margin-bottom:1.15rem;box-shadow:var(--shadow)}
+  .card.hot{border-color:rgba(247,147,26,0.55);background:rgba(247,147,26,0.06)}
+  .h{font-size:.72rem;font-weight:700;letter-spacing:.22em;color:var(--dim);
+     text-transform:uppercase;margin-bottom:1.1rem}
+  .cardhead{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+  button.x{flex:none;margin-top:-.4rem;padding:.1rem .5rem .25rem;font-size:1.25rem;
+    line-height:1;font-weight:400;letter-spacing:0;text-transform:none;
+    border-color:transparent;background:transparent;color:var(--dim)}
+  button.x:hover{color:var(--ink);border-color:var(--line);background:var(--panel2)}
+  .h.on{color:var(--accent-ink)} .h.ok{color:var(--green-ink)}
+
+  /* ---- online/offline badge ---- */
+  .badge{display:inline-flex;align-items:center;gap:.55rem;padding:.4rem .85rem;
+    border-radius:999px;font-size:.74rem;font-weight:700;letter-spacing:.14em;
+    text-transform:uppercase;border:1px solid;margin-bottom:1.1rem}
+  .badge .led{width:8px;height:8px;border-radius:50%;flex:none}
+  .badge.on{color:var(--accent-ink);border-color:rgba(247,147,26,.45);background:rgba(247,147,26,.07)}
+  .badge.on .led{background:var(--orange)}
+  .badge.off{color:var(--green-ink);border-color:rgba(54,211,153,.4);background:rgba(54,211,153,.07)}
+  .badge.off .led{background:var(--green)}
+
+  /* ---- input ---- */
+  textarea{width:100%;min-height:7rem;padding:1rem 1.1rem;border:1px solid var(--line);
+    border-radius:12px;background:var(--field);color:var(--ink);resize:vertical;
+    font:15px/1.9 var(--mono);letter-spacing:.02em}
+  textarea::placeholder{color:var(--dim)}
+  textarea:focus{outline:none;border-color:rgba(247,147,26,.6);
+    box-shadow:0 0 0 3px rgba(247,147,26,.09)}
+  .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-top:1rem}
+  button{font-family:var(--sans);font-size:.82rem;font-weight:700;letter-spacing:.1em;
+    text-transform:uppercase;padding:.7rem 1.15rem;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line);background:var(--panel);color:var(--muted);
+    transition:border-color .15s,color .15s,background .15s}
+  button:hover{border-color:rgba(247,147,26,.5);color:var(--ink)}
+  button.primary{background:var(--orange);border-color:var(--orange);color:#000}
+  button.primary:hover{background:var(--gold);border-color:var(--gold);color:#000}
+  .hint{font-size:.78rem;color:var(--dim);margin-top:.9rem;letter-spacing:.02em}
+  select{font-family:var(--sans);font-size:.82rem;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;padding:.7rem .8rem;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line);background:var(--panel);color:var(--muted);
+    max-width:100%}
+  select:hover{border-color:rgba(247,147,26,.5);color:var(--ink)}
+  .meter{margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--line2)}
+  #inputcard,#meter{scroll-margin-top:1.25rem}
+  .mrow{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;margin-bottom:.55rem}
+  .mlab{font-size:.7rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+  .mval{font:700 .95rem var(--mono)}
+  .bar{height:6px;border-radius:999px;background:var(--panel2);
+       border:1px solid var(--line2);overflow:hidden}
+  .fill{height:100%;width:0;border-radius:999px;transition:width .3s ease,background .3s ease}
+  .mnote{font-size:.8rem;color:var(--muted);margin-top:.7rem;line-height:1.6}
+  .mnote b{color:var(--ink);font-weight:700}
+  .ok-c{color:var(--green-ink)} .warn-c{color:var(--accent-ink)} .bad-c{color:var(--red-ink)}
+  .status{font-size:.92rem;margin-top:1rem;min-height:1.4em;font-weight:600}
+  .status.bad{color:var(--red-ink)} .status.ok{color:var(--green-ink)}
+
+  /* ---- results ---- */
+  /* Multi-column, not grid: candidates read top-to-bottom, then left-to-right,
+     so scanning down a column follows the wordlist order. Column count and
+     balancing are handled by the browser, so it survives any resize. */
+  .grid{columns:10rem;column-gap:.4rem}
+  .w{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;
+    padding:.5rem .75rem;border-radius:8px;background:var(--panel2);
+    border:1px solid var(--line2);cursor:pointer;font:14px/1.4 var(--mono);
+    color:var(--ink);transition:border-color .12s,background .12s;
+    break-inside:avoid;margin-bottom:.4rem}
+  .w:hover{border-color:rgba(247,147,26,.5);background:rgba(247,147,26,.05)}
+  .w.sel{background:rgba(247,147,26,.14);border-color:var(--orange);color:var(--accent-ink)}
+  .w .i{font-size:11px;color:var(--dim);letter-spacing:.04em}
+  .w.sel .i{color:var(--accent-ink);opacity:.7}
+  .full{margin-top:1.1rem;padding:1.1rem 1.2rem;border:1px dashed rgba(247,147,26,.4);
+    border-radius:12px;background:rgba(247,147,26,.05);font:14px/2 var(--mono);
+    word-spacing:.35em;color:var(--ink)}
+  .full .n{color:var(--accent-ink);font-weight:700}
+
+  /* ---- tables ---- */
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{border-collapse:collapse;width:100%;font-size:.88rem;min-width:26rem}
+  th{text-align:left;padding:.5rem .6rem;color:var(--dim);font-weight:700;
+     font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;
+     border-bottom:1px solid var(--line)}
+  td{padding:.6rem;border-bottom:1px solid var(--line2);color:var(--muted)}
+  tr:last-child td{border-bottom:none}
+  td.k{color:var(--ink);font-weight:600}
+  td.v{font-family:var(--mono);color:var(--ink)}
+  tr.grp td{padding:1.1rem .6rem .4rem;font-size:.68rem;font-weight:700;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line)}
+  tr.grp:first-child td{padding-top:0}
+  .verdict{font-size:1.05rem;font-weight:800;letter-spacing:-.01em;margin-bottom:.4rem}
+  .verdict-sub{font-size:.9rem;color:var(--muted);line-height:1.6;margin-bottom:.5rem}
+  .verdict-caveat{font-size:.85rem;color:var(--muted);line-height:1.6;margin-bottom:1.1rem;
+    border-left:2px solid var(--orange);padding:.5rem .9rem;background:rgba(247,147,26,.05);
+    border-radius:0 8px 8px 0}
+  .verdict-caveat b{color:var(--ink)}
+  .pass{color:var(--green-ink);font-weight:700;letter-spacing:.1em;font-size:.74rem;text-transform:uppercase}
+  .fail{color:var(--red-ink);font-weight:700;letter-spacing:.1em;font-size:.74rem;text-transform:uppercase}
+  code{font-family:var(--mono);font-size:.86em;color:var(--code-ink);
+       background:var(--code-bg);padding:.12em .4em;border-radius:4px;
+       overflow-wrap:anywhere}
+
+  /* ---- notes / bullets ---- */
+  ul{list-style:none}
+  .warn ol{margin:.7rem 0 .2rem;padding-left:1.35rem}
+  .warn ol li{font-size:.88rem;padding-left:.3rem;margin-bottom:.45rem;list-style:decimal}
+  .warn ol li::before{content:none}
+  .warn details{margin-top:.7rem}
+  .warn details p{font-size:.88rem;margin-top:.6rem}
+  li{font-size:.95rem;color:var(--muted);line-height:1.5;padding-left:1.4rem;
+     position:relative;margin-bottom:.6rem}
+  li::before{content:'';position:absolute;left:0;top:.55em;width:8px;height:8px;
+    border-radius:50%;background:var(--orange);opacity:.7}
+  li b{color:var(--ink);font-weight:700}
+  .warn{border-left:2px solid var(--orange);padding:.85rem 1.15rem;
+    background:rgba(247,147,26,.05);border-radius:0 12px 12px 0;
+    font-size:.92rem;color:var(--muted);margin-bottom:1.6rem}
+  .warn b{color:var(--ink)}
+  .qa details{margin:0;border-bottom:1px solid var(--line2)}
+  .qa details:last-child{border-bottom:none}
+  .qa summary{padding:.85rem 0;font-size:.95rem;font-weight:600;letter-spacing:0;
+    text-transform:none;color:var(--ink)}
+  .qa summary:hover{color:var(--accent-ink)}
+  .qa summary::before{content:'+';color:var(--orange);font-weight:700;
+    display:inline-block;width:1.1rem}
+  .qa details[open] summary::before{content:'–'}
+  .qa details p{margin:0 0 1rem;padding-left:1.1rem;font-size:.9rem;max-width:52rem}
+  .qa details .scroll{margin:0 0 1.1rem;padding-left:1.1rem}
+  .qa .grp2{font-size:.68rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--dim);margin:1.7rem 0 .2rem;padding-top:1.3rem;border-top:1px solid var(--line)}
+  .qa .grp2:first-child{margin-top:0;padding-top:0;border-top:none}
+  details{margin-top:1rem}
+  summary{cursor:pointer;color:var(--dim);font-size:.8rem;font-weight:700;
+    letter-spacing:.14em;text-transform:uppercase;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:'▸ ';color:var(--accent-ink)}
+  details[open] summary::before{content:'▾ '}
+  details p{font-size:.9rem;color:var(--muted);margin-top:.8rem;line-height:1.6}
+
+  footer{border-top:1px solid var(--line);margin-top:2.6rem;padding-top:1.5rem;
+    display:flex;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;
+    font-size:.72rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
+  footer .l{color:var(--accent-ink)} footer .l span{color:var(--dim);font-weight:600}
+  footer .r{color:var(--dim)}
+  .prov{overflow-wrap:anywhere;font-size:.78rem;color:var(--dim);line-height:1.8;margin-top:1.1rem;
+    letter-spacing:.01em;text-transform:none;font-weight:400;flex-basis:100%}
+  @media(max-width:640px){ main{padding-top:3.5rem} .stats{gap:1.75rem} }
+</style>
+<script>try{var t=localStorage.getItem("bip39-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body>
+<div class="topbar"></div>
+<main>
+  <div class="topline">
+    <div class="kicker"><div class="dash"></div><div class="label">BIP-39 CHECKSUM</div></div>
+    <button id="theme" type="button" aria-label="Switch colour theme"><span id="themeglyph">☀</span> <span id="themetxt">Light</span></button>
+  </div>
+  <h1>The last word is <em>not yours</em> to choose.</h1>
+  <p class="dek">Every seed phrase ends in a checksum. Give this page the words you have and it returns
+     every final word that produces a valid phrase — and nothing else.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="num">128<span> / 2048</span></div><div class="lab">Valid 12th words</div></div>
+    <div class="stat"><div class="num">8<span> / 2048</span></div><div class="lab">Valid 24th words</div></div>
+    <div class="stat"><div class="num">0<span></span></div><div class="lab">Network requests</div></div>
+  </div>
+
+  <div class="warn">
+    <b>Run this offline for anything real.</b> This page makes no network requests and a
+    Content-Security-Policy blocks them outright — but that protects you from this page only,
+    not from your browser or your machine.
+    <details>
+      <summary>How to run it safely — 6 steps</summary>
+      <p><b>Browser extensions are the risk this page cannot touch.</b> An extension can read
+      everything you type here and every phrase generated, and no web page can prevent that.
+      Private browsing is not a reliable defence: Chrome and Firefox disable extensions in
+      private windows by default, but that is a per-extension switch many people turn on — and
+      <b>Safari runs them in Private Browsing by default</b>. Use a browser profile with no
+      extensions installed.</p>
+      <ol>
+        <li>Download this page and check its checksum against the published one.</li>
+        <li>Make a fresh browser profile — Chrome/Edge: profile icon → Add; Firefox:
+            <code>about:profiles</code> → Create a New Profile. Install nothing into it,
+            sign in to nothing.</li>
+        <li>Turn off Wi-Fi and unplug any network cable.</li>
+        <li>Open a private window in that profile and drag the saved file onto it.</li>
+        <li>Check the badge below reads <b>Offline — no route out</b>, then press
+            <b>Verify this page</b> and confirm it says <b>12 of 12 checks passed</b>.</li>
+        <li>Write the phrase down by hand — never the copy buttons — then quit the browser
+            completely before reconnecting.</li>
+      </ol>
+    </details>
+  </div>
+
+  <div class="card" id="inputcard">
+    <div id="badge" class="badge on"><span class="led"></span><span id="badgetxt">Checking…</span></div>
+    <div class="h">Your words — 11, 14, 17, 20 or 23</div>
+    <textarea id="in" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
+      placeholder="paste your incomplete seed phrase, separated by spaces"></textarea>
+    <div class="row">
+      <button class="primary" id="go">Find checksum words</button>
+      <button id="ex">Load example</button>
+      <button id="test">Verify this page</button>
+      <button id="clr">Clear</button>
+    </div>
+    <div class="row">
+      <select id="genlen" aria-label="How many words to generate">
+        <option value="11">11 words → 12-word phrase</option>
+        <option value="14">14 words → 15-word phrase</option>
+        <option value="17">17 words → 18-word phrase</option>
+        <option value="20">20 words → 21-word phrase</option>
+        <option value="23">23 words → 24-word phrase</option>
+      </select>
+      <button id="gen">Generate at random</button>
+    </div>
+    <div class="hint">⌘/Ctrl + Enter to calculate. Generated words come from
+      <code>crypto.getRandomValues</code>. Nothing is stored, logged, or sent.</div>
+    <div class="status" id="st"></div>
+    <div class="meter" id="meter" style="display:none">
+      <div class="mrow">
+        <span class="mlab">Entropy of the words above</span>
+        <span class="mval" id="mval"></span>
+      </div>
+      <div class="bar"><div class="fill" id="mfill"></div></div>
+      <div class="mnote" id="mnote"></div>
+    </div>
+  </div>
+
+  <div class="card" id="testout" style="display:none">
+    <div class="cardhead">
+      <div class="h ok">Verification</div>
+      <button class="x" id="testclose" type="button" aria-label="Close verification">×</button>
+    </div>
+    <div id="testbody"></div>
+  </div>
+
+  <div class="card" id="out" style="display:none">
+    <div class="h on" id="outlbl"></div>
+    <div class="grid" id="grid"></div>
+    <div class="full" id="full" style="display:none"></div>
+    <div class="row">
+      <button id="rand">Pick at random</button>
+      <button id="copy">Copy candidates</button>
+      <button id="copyfull" style="display:none">Copy full phrase</button>
+    </div>
+    <div class="hint" id="cliphint" style="display:none">⚠︎ Copying a full phrase puts it on
+      the system clipboard, where any running app can read it — clipboard managers keep a
+      history on disk, and macOS Universal Clipboard syncs it to your other devices. Type it
+      out by hand instead if it holds real funds.</div>
+    <div class="hint" id="randnote" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <div class="h">Questions</div>
+    <div class="qa">
+
+      <div class="grp2">The last word</div>
+
+      <details>
+        <summary>Why can’t I just choose my own last word?</summary>
+        <p>Because it is not free text. The final word carries a checksum over everything
+        before it, so only a small set of words produce a phrase a wallet will accept. Pick
+        any other and the wallet rejects the whole phrase as invalid — which is what this page
+        is for: it works out which words qualify.</p>
+      </details>
+
+      <details>
+        <summary>How many endings will actually work?</summary>
+        <p>Far fewer than the 2048 words in the list, and fewer the longer your phrase. The
+        final word carries the last few entropy bits <b>plus the entire checksum</b>, so the
+        longer the phrase, the more checksum that one word has to hold.</p>
+        <div class="scroll"><table>
+          <tr><th>Phrase</th><th>You supply</th><th>Checksum bits</th><th>Valid endings</th></tr>
+          <tr><td class="k">12 words</td><td>11</td><td class="v">4</td><td class="v">128</td></tr>
+          <tr><td class="k">15 words</td><td>14</td><td class="v">5</td><td class="v">64</td></tr>
+          <tr><td class="k">18 words</td><td>17</td><td class="v">6</td><td class="v">32</td></tr>
+          <tr><td class="k">21 words</td><td>20</td><td class="v">7</td><td class="v">16</td></tr>
+          <tr><td class="k">24 words</td><td>23</td><td class="v">8</td><td class="v">8</td></tr>
+        </table></div>
+      </details>
+
+      <details>
+        <summary>Why do longer phrases give fewer choices?</summary>
+        <p>Every phrase sets aside a fixed number of bits for its checksum, and the last word is
+        where they live. A 12-word phrase sets aside 4 of them, leaving 7 bits free — that is
+        2<sup>7</sup> = 128 endings. A 24-word phrase sets aside 8, leaving only 3 free, so just
+        2<sup>3</sup> = 8 words can finish it. Each extra checksum bit halves your options.</p>
+      </details>
+
+      <details>
+        <summary>What if the missing word is not the last one?</summary>
+        <p>This page only works out the final word. If a word is missing from somewhere in the
+        middle, the checksum still narrows it down — for a 12-word phrase, to roughly 128 of the
+        2048 possibilities — but that is a different search, and this page does not do it.</p>
+      </details>
+
+      <details>
+        <summary>Does the checksum give away anything about my other words?</summary>
+        <p>No. The checksum is derived <em>from</em> your words, not the other way round, and it
+        is not part of the secret — it exists so a wallet can catch a typo instead of silently
+        opening an empty account. Someone holding only your last word learns nothing useful
+        about the rest.</p>
+      </details>
+
+      <div class="grp2">Randomness and entropy</div>
+
+      <details>
+        <summary>Where does the randomness on this page come from?</summary>
+        <p>From <code>crypto.getRandomValues</code>, the browser’s cryptographic generator.
+        There is no <code>Math.random</code> anywhere in this file. The word list holds
+        2048 = 2<sup>11</sup> entries, so eleven raw bits pick a word outright: the code masks
+        off those bits rather than folding a bigger number down with a remainder, which means
+        every word is exactly equally likely — no bias to correct and no retry loop that could
+        introduce one.</p>
+      </details>
+
+      <details>
+        <summary>What does the entropy read-out actually measure?</summary>
+        <p>Not entropy — nothing can measure the entropy of a phrase. Entropy is a property of
+        <em>how</em> words were chosen, not of the words themselves, so a genuine random draw
+        can look terrible and a hand-picked one can look fine. What it does instead is look for
+        the fingerprints of hand-picking — repetition, wordlist order, words bunched into one
+        stretch of the list — and report the search space an attacker would face having spotted
+        them. Treat it as an upper bound, never as proof your words are random.</p>
+      </details>
+
+      <details>
+        <summary>Why do 23 identical words score only 11 bits?</summary>
+        <p>Because “the same word 23 times” is only 2048 possible phrases, one per word in the
+        list, and log<sub>2</sub>(2048) = 11. Repeating a word more times adds nothing at all —
+        every word after the first is already determined. A 23-word repeat is exactly as weak as
+        an 11-word repeat, which is the clearest demonstration there is that length is not
+        entropy.</p>
+      </details>
+
+      <details>
+        <summary>Is a phrase generated here as good as one from a hardware wallet?</summary>
+        <p>The randomness is of the same quality: both draw from a cryptographic generator, and
+        24 random words is 256 bits either way. What differs is the machine. A hardware wallet
+        builds the phrase on a device that does one job and never hands it to an operating
+        system running everything else you have installed. A browser on an ordinary computer
+        cannot make that promise, which is why the guidance above is worth following.</p>
+      </details>
+
+      <div class="grp2">Trust and privacy</div>
+
+      <details>
+        <summary>Does anything I type here leave my computer?</summary>
+        <p>No. The page makes no network requests of any kind, and a Content-Security-Policy
+        blocks them outright — no fonts, scripts, styles or images load from anywhere. Nothing
+        is stored or logged. That covers this page only, though: a browser extension can read
+        what you type here, and no web page can stop it.</p>
+      </details>
+
+      <details>
+        <summary>How do I know this page has not been altered?</summary>
+        <p>Press <b>Verify this page</b>. It hashes its own built-in word list and compares the
+        result against the official BIP-39 list, and works out the endings for nine examples
+        whose correct answers are published in the standard. Change a single word in the
+        embedded list and the check fails, showing a different hash.</p>
+      </details>
+
+    </div>
+  </div>
+
+  <footer>
+    <div class="l">BIP-39 LAST WORD <span>· CHECKSUM CALCULATOR</span></div>
+    <div class="r">TOOTHJOCKEY LLC · RUNS OFFLINE</div>
+    <div class="prov">
+      Wordlist: the official BIP-39 English list from <code>bitcoin/bips</code> (MIT), embedded verbatim —
+      SHA-256 <code>2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda</code>.
+      Hashing uses the browser's native <code>crypto.subtle</code>. No fonts, scripts, styles or
+      images are loaded from anywhere.<br>
+      Copyright © 2026 Toothjockey LLC — MIT licensed, and open source so you can check all of this.
+    </div>
+  </footer>
+</main>
+
+<script>
+"use strict";
+const WORDS = "abandon ability able about above absent absorb abstract absurd abuse access accident account accuse achieve acid acoustic acquire across act action actor actress actual adapt add addict address adjust admit adult advance advice aerobic affair afford afraid again age agent agree ahead aim air airport aisle alarm album alcohol alert alien all alley allow almost alone alpha already also alter always amateur amazing among amount amused analyst anchor ancient anger angle angry animal ankle announce annual another answer antenna antique anxiety any apart apology appear apple approve april arch arctic area arena argue arm armed armor army around arrange arrest arrive arrow art artefact artist artwork ask aspect assault asset assist assume asthma athlete atom attack attend attitude attract auction audit august aunt author auto autumn average avocado avoid awake aware away awesome awful awkward axis baby bachelor bacon badge bag balance balcony ball bamboo banana banner bar barely bargain barrel base basic basket battle beach bean beauty because become beef before begin behave behind believe below belt bench benefit best betray better between beyond bicycle bid bike bind biology bird birth bitter black blade blame blanket blast bleak bless blind blood blossom blouse blue blur blush board boat body boil bomb bone bonus book boost border boring borrow boss bottom bounce box boy bracket brain brand brass brave bread breeze brick bridge brief bright bring brisk broccoli broken bronze broom brother brown brush bubble buddy budget buffalo build bulb bulk bullet bundle bunker burden burger burst bus business busy butter buyer buzz cabbage cabin cable cactus cage cake call calm camera camp can canal cancel candy cannon canoe canvas canyon capable capital captain car carbon card cargo carpet carry cart case cash casino castle casual cat catalog catch category cattle caught cause caution cave ceiling celery cement census century cereal certain chair chalk champion change chaos chapter charge chase chat cheap check cheese chef cherry chest chicken chief child chimney choice choose chronic chuckle chunk churn cigar cinnamon circle citizen city civil claim clap clarify claw clay clean clerk clever click client cliff climb clinic clip clock clog close cloth cloud clown club clump cluster clutch coach coast coconut code coffee coil coin collect color column combine come comfort comic common company concert conduct confirm congress connect consider control convince cook cool copper copy coral core corn correct cost cotton couch country couple course cousin cover coyote crack cradle craft cram crane crash crater crawl crazy cream credit creek crew cricket crime crisp critic crop cross crouch crowd crucial cruel cruise crumble crunch crush cry crystal cube culture cup cupboard curious current curtain curve cushion custom cute cycle dad damage damp dance danger daring dash daughter dawn day deal debate debris decade december decide decline decorate decrease deer defense define defy degree delay deliver demand demise denial dentist deny depart depend deposit depth deputy derive describe desert design desk despair destroy detail detect develop device devote diagram dial diamond diary dice diesel diet differ digital dignity dilemma dinner dinosaur direct dirt disagree discover disease dish dismiss disorder display distance divert divide divorce dizzy doctor document dog doll dolphin domain donate donkey donor door dose double dove draft dragon drama drastic draw dream dress drift drill drink drip drive drop drum dry duck dumb dune during dust dutch duty dwarf dynamic eager eagle early earn earth easily east easy echo ecology economy edge edit educate effort egg eight either elbow elder electric elegant element elephant elevator elite else embark embody embrace emerge emotion employ empower empty enable enact end endless endorse enemy energy enforce engage engine enhance enjoy enlist enough enrich enroll ensure enter entire entry envelope episode equal equip era erase erode erosion error erupt escape essay essence estate eternal ethics evidence evil evoke evolve exact example excess exchange excite exclude excuse execute exercise exhaust exhibit exile exist exit exotic expand expect expire explain expose express extend extra eye eyebrow fabric face faculty fade faint faith fall false fame family famous fan fancy fantasy farm fashion fat fatal father fatigue fault favorite feature february federal fee feed feel female fence festival fetch fever few fiber fiction field figure file film filter final find fine finger finish fire firm first fiscal fish fit fitness fix flag flame flash flat flavor flee flight flip float flock floor flower fluid flush fly foam focus fog foil fold follow food foot force forest forget fork fortune forum forward fossil foster found fox fragile frame frequent fresh friend fringe frog front frost frown frozen fruit fuel fun funny furnace fury future gadget gain galaxy gallery game gap garage garbage garden garlic garment gas gasp gate gather gauge gaze general genius genre gentle genuine gesture ghost giant gift giggle ginger giraffe girl give glad glance glare glass glide glimpse globe gloom glory glove glow glue goat goddess gold good goose gorilla gospel gossip govern gown grab grace grain grant grape grass gravity great green grid grief grit grocery group grow grunt guard guess guide guilt guitar gun gym habit hair half hammer hamster hand happy harbor hard harsh harvest hat have hawk hazard head health heart heavy hedgehog height hello helmet help hen hero hidden high hill hint hip hire history hobby hockey hold hole holiday hollow home honey hood hope horn horror horse hospital host hotel hour hover hub huge human humble humor hundred hungry hunt hurdle hurry hurt husband hybrid ice icon idea identify idle ignore ill illegal illness image imitate immense immune impact impose improve impulse inch include income increase index indicate indoor industry infant inflict inform inhale inherit initial inject injury inmate inner innocent input inquiry insane insect inside inspire install intact interest into invest invite involve iron island isolate issue item ivory jacket jaguar jar jazz jealous jeans jelly jewel job join joke journey joy judge juice jump jungle junior junk just kangaroo keen keep ketchup key kick kid kidney kind kingdom kiss kit kitchen kite kitten kiwi knee knife knock know lab label labor ladder lady lake lamp language laptop large later latin laugh laundry lava law lawn lawsuit layer lazy leader leaf learn leave lecture left leg legal legend leisure lemon lend length lens leopard lesson letter level liar liberty library license life lift light like limb limit link lion liquid list little live lizard load loan lobster local lock logic lonely long loop lottery loud lounge love loyal lucky luggage lumber lunar lunch luxury lyrics machine mad magic magnet maid mail main major make mammal man manage mandate mango mansion manual maple marble march margin marine market marriage mask mass master match material math matrix matter maximum maze meadow mean measure meat mechanic medal media melody melt member memory mention menu mercy merge merit merry mesh message metal method middle midnight milk million mimic mind minimum minor minute miracle mirror misery miss mistake mix mixed mixture mobile model modify mom moment monitor monkey monster month moon moral more morning mosquito mother motion motor mountain mouse move movie much muffin mule multiply muscle museum mushroom music must mutual myself mystery myth naive name napkin narrow nasty nation nature near neck need negative neglect neither nephew nerve nest net network neutral never news next nice night noble noise nominee noodle normal north nose notable note nothing notice novel now nuclear number nurse nut oak obey object oblige obscure observe obtain obvious occur ocean october odor off offer office often oil okay old olive olympic omit once one onion online only open opera opinion oppose option orange orbit orchard order ordinary organ orient original orphan ostrich other outdoor outer output outside oval oven over own owner oxygen oyster ozone pact paddle page pair palace palm panda panel panic panther paper parade parent park parrot party pass patch path patient patrol pattern pause pave payment peace peanut pear peasant pelican pen penalty pencil people pepper perfect permit person pet phone photo phrase physical piano picnic picture piece pig pigeon pill pilot pink pioneer pipe pistol pitch pizza place planet plastic plate play please pledge pluck plug plunge poem poet point polar pole police pond pony pool popular portion position possible post potato pottery poverty powder power practice praise predict prefer prepare present pretty prevent price pride primary print priority prison private prize problem process produce profit program project promote proof property prosper protect proud provide public pudding pull pulp pulse pumpkin punch pupil puppy purchase purity purpose purse push put puzzle pyramid quality quantum quarter question quick quit quiz quote rabbit raccoon race rack radar radio rail rain raise rally ramp ranch random range rapid rare rate rather raven raw razor ready real reason rebel rebuild recall receive recipe record recycle reduce reflect reform refuse region regret regular reject relax release relief rely remain remember remind remove render renew rent reopen repair repeat replace report require rescue resemble resist resource response result retire retreat return reunion reveal review reward rhythm rib ribbon rice rich ride ridge rifle right rigid ring riot ripple risk ritual rival river road roast robot robust rocket romance roof rookie room rose rotate rough round route royal rubber rude rug rule run runway rural sad saddle sadness safe sail salad salmon salon salt salute same sample sand satisfy satoshi sauce sausage save say scale scan scare scatter scene scheme school science scissors scorpion scout scrap screen script scrub sea search season seat second secret section security seed seek segment select sell seminar senior sense sentence series service session settle setup seven shadow shaft shallow share shed shell sheriff shield shift shine ship shiver shock shoe shoot shop short shoulder shove shrimp shrug shuffle shy sibling sick side siege sight sign silent silk silly silver similar simple since sing siren sister situate six size skate sketch ski skill skin skirt skull slab slam sleep slender slice slide slight slim slogan slot slow slush small smart smile smoke smooth snack snake snap sniff snow soap soccer social sock soda soft solar soldier solid solution solve someone song soon sorry sort soul sound soup source south space spare spatial spawn speak special speed spell spend sphere spice spider spike spin spirit split spoil sponsor spoon sport spot spray spread spring spy square squeeze squirrel stable stadium staff stage stairs stamp stand start state stay steak steel stem step stereo stick still sting stock stomach stone stool story stove strategy street strike strong struggle student stuff stumble style subject submit subway success such sudden suffer sugar suggest suit summer sun sunny sunset super supply supreme sure surface surge surprise surround survey suspect sustain swallow swamp swap swarm swear sweet swift swim swing switch sword symbol symptom syrup system table tackle tag tail talent talk tank tape target task taste tattoo taxi teach team tell ten tenant tennis tent term test text thank that theme then theory there they thing this thought three thrive throw thumb thunder ticket tide tiger tilt timber time tiny tip tired tissue title toast tobacco today toddler toe together toilet token tomato tomorrow tone tongue tonight tool tooth top topic topple torch tornado tortoise toss total tourist toward tower town toy track trade traffic tragic train transfer trap trash travel tray treat tree trend trial tribe trick trigger trim trip trophy trouble truck true truly trumpet trust truth try tube tuition tumble tuna tunnel turkey turn turtle twelve twenty twice twin twist two type typical ugly umbrella unable unaware uncle uncover under undo unfair unfold unhappy uniform unique unit universe unknown unlock until unusual unveil update upgrade uphold upon upper upset urban urge usage use used useful useless usual utility vacant vacuum vague valid valley valve van vanish vapor various vast vault vehicle velvet vendor venture venue verb verify version very vessel veteran viable vibrant vicious victory video view village vintage violin virtual virus visa visit visual vital vivid vocal voice void volcano volume vote voyage wage wagon wait walk wall walnut want warfare warm warrior wash wasp waste water wave way wealth weapon wear weasel weather web wedding weekend weird welcome west wet whale what wheat wheel when where whip whisper wide width wife wild will win window wine wing wink winner winter wire wisdom wise wish witness wolf woman wonder wood wool word work world worry worth wrap wreck wrestle wrist write wrong yard year yellow you young youth zebra zero zone zoo".split(" ");
+const IDX = new Map(WORDS.map((w, i) => [w, i]));
+
+// words you supply -> { total phrase length, checksum bits }
+const CFG = { 11:{n:12,cs:4}, 14:{n:15,cs:5}, 17:{n:18,cs:6}, 20:{n:21,cs:7}, 23:{n:24,cs:8} };
+
+const bits = (n, w) => n.toString(2).padStart(w, "0");
+
+// SHA-256 of a UTF-8 string, hex. Used to prove the embedded wordlist has not
+// been altered — the one check that survives someone tampering with a hosted copy.
+const WORDLIST_SHA256 = "2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda";
+async function sha256Text(str) {
+  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return [...new Uint8Array(h)].map(x => x.toString(16).padStart(2, "0")).join("");
+}
+
+async function sha256(bitStr) {
+  const bytes = new Uint8Array(bitStr.match(/.{8}/g).map(b => parseInt(b, 2)));
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+}
+
+// Every valid final word for the supplied prefix.
+async function candidates(words) {
+  const cfg = CFG[words.length];
+  const known = words.map(w => bits(IDX.get(w), 11)).join("");
+  const tail = 11 - cfg.cs;                 // entropy bits carried by the last word
+  const out = [];
+  for (let i = 0; i < (1 << tail); i++) {
+    const b = bits(i, tail);
+    const h = await sha256(known + b);
+    const cs = [...h].map(x => bits(x, 8)).join("").slice(0, cfg.cs);
+    // Arithmetic, not string comparison: no leading-zero hazard.
+    out.push(WORDS[parseInt(b + cs, 2)]);
+  }
+  return out;
+}
+
+function parse(raw) {
+  const words = raw.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return { err: "Enter your words above." };
+  const bad = [...new Set(words.filter(w => !IDX.has(w)))];
+  if (bad.length) return { err: "Not BIP-39 words — " + bad.join(", ") };
+  if (!CFG[words.length]) return { err: `${words.length} words entered. Give 11, 14, 17, 20 or 23 — one short of a full phrase.` };
+  return { words };
+}
+
+const $ = id => document.getElementById(id);
+let current = [], prefix = [];
+
+async function calculate() {
+  const { words, err } = parse($("in").value);
+  $("full").style.display = "none";
+  $("copyfull").style.display = "none";
+  $("cliphint").style.display = "none";
+  $("randnote").style.display = "none";
+  updateMeter();
+  if (err) {
+    $("st").className = "status bad"; $("st").textContent = "✕  " + err;
+    $("out").style.display = "none"; return;
+  }
+  if (!globalThis.crypto || !crypto.subtle) {
+    $("st").className = "status bad";
+    $("st").textContent = "✕  crypto.subtle unavailable — serve this over http://localhost instead of opening the file directly.";
+    return;
+  }
+  $("st").className = "status"; $("st").textContent = "Working…";
+  prefix = words;
+  current = await candidates(words);
+  const cfg = CFG[words.length];
+  $("st").className = "status ok";
+  $("st").textContent = `✓  ${current.length} words complete your ${cfg.n}-word phrase.`;
+  $("outlbl").textContent = `Word ${cfg.n} · ${current.length} valid endings · click to build the phrase`;
+  $("grid").innerHTML = "";
+  current.forEach(w => {
+    const el = document.createElement("div");
+    el.className = "w";
+    const a = document.createElement("span"); a.textContent = w;
+    const b = document.createElement("span"); b.className = "i"; b.textContent = IDX.get(w);
+    el.append(a, b);
+    el.onclick = () => {
+      document.querySelectorAll(".w.sel").forEach(x => x.classList.remove("sel"));
+      el.classList.add("sel");
+      $("full").innerHTML = "";
+      prefix.forEach(p => $("full").append(document.createTextNode(p + " ")));
+      const last = document.createElement("span"); last.className = "n"; last.textContent = w;
+      $("full").append(last);
+      $("full").style.display = "block";
+      $("copyfull").style.display = "inline-block";
+      $("cliphint").style.display = "block";
+    };
+    $("grid").appendChild(el);
+  });
+  $("out").style.display = "block";
+  revealResults();
+}
+
+// Scroll far enough to show that endings were produced, without pushing the
+// entropy read-out off screen — someone with a weak phrase needs to see that
+// warning at the same time as the result. With the verification panel open
+// there is more to clear, so anchor on the read-out itself; otherwise anchor on
+// the whole input card, which keeps it entirely in view.
+function revealResults() {
+  const verifying = $("testout").style.display !== "none";
+  const meterShown = $("meter").style.display !== "none";
+  const anchor = (verifying && meterShown) ? $("meter") : $("inputcard");
+  anchor.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function selfTest() {
+  // Every entry is a phrase whose correct ending is published in the BIP-39
+  // standard, so "did we get the right answer" has an objective answer.
+  const V = [
+    { pre:"abandon ".repeat(11).trim(), want:"about",   count:128,
+      label:"12-word phrases", note:"the standard’s all-zeros example" },
+    { pre:"zoo ".repeat(11).trim(), want:"wrong", count:128,
+      label:"12-word phrases", note:"the standard’s all-ones example" },
+    { pre:"legal winner thank year wave sausage worth useful legal winner thank",
+      want:"yellow", count:128, label:"12-word phrases", note:"a published example phrase" },
+    { pre:"letter advice cage absurd amount doctor acoustic avoid letter advice cage",
+      want:"above", count:128, label:"12-word phrases", note:"another published example" },
+    { pre:"abandon ".repeat(14).trim(), want:"address", count:64,
+      label:"15-word phrases", note:"a published example" },
+    { pre:"abandon ".repeat(17).trim(), want:"agent", count:32,
+      label:"18-word phrases", note:"a published example" },
+    { pre:"abandon ".repeat(20).trim(), want:"admit", count:16,
+      label:"21-word phrases", note:"a published example" },
+    { pre:"abandon ".repeat(23).trim(), want:"art", count:8,
+      label:"24-word phrases", note:"a published example" },
+    { pre:"zoo ".repeat(23).trim(), want:"vote", count:8,
+      label:"24-word phrases", note:"the all-ones example" },
+  ];
+
+  $("testout").style.display = "block";
+  $("testbody").innerHTML = `<p class="verdict-sub">Checking…</p>`;
+  $("testout").scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const row = (what, detail, result, pass) =>
+    `<tr><td class="k">${what}<br><span style="font-weight:400;color:var(--dim)">${detail}</span></td>
+     <td class="v">${result}</td>
+     <td class="${pass ? "pass" : "fail"}">${pass ? "pass" : "fail"}</td></tr>`;
+
+  // --- run everything, keeping a per-check breakdown for the details view ---
+  const detail = [`<tr class="grp"><td colspan="3">Does it work out the right answer?</td></tr>`];
+  let calcOk = 0, low = false;
+
+  for (const v of V) {
+    const got = await candidates(v.pre.split(" "));
+    if (got.some(w => IDX.get(w) < 1024)) low = true;
+    const hit = got.includes(v.want);
+    const pass = hit && got.length === v.count && new Set(got).size === got.length;
+    if (pass) calcOk++;
+    detail.push(row(v.label, `${v.note} — must end in “${v.want}”`,
+      (got.length === v.count ? `found all ${v.count} endings`
+                              : `found ${got.length} endings, expected ${v.count}`)
+      + (hit ? `, “${v.want}” among them` : `, but “${v.want}” is missing`), pass));
+  }
+  detail.push(row("Covers the whole word list",
+    "endings must be able to come from anywhere in the 2048 words, not just the back half",
+    low ? "endings found from both halves" : "only the back half of the list", low));
+  if (low) calcOk++;
+  const CALC_TOTAL = V.length + 1;
+
+  detail.push(`<tr class="grp"><td colspan="3">Has this page been tampered with?</td></tr>`);
+
+  const listHash = await sha256Text(WORDS.join("\n") + "\n");
+  const listOk = listHash === WORDLIST_SHA256;
+  const listResult = listOk ? `unchanged — SHA-256 ${listHash.slice(0, 10)}…`
+                            : `ALTERED — got ${listHash.slice(0, 10)}…`;
+  detail.push(row("The built-in word list",
+    "must be the official BIP-39 English list, unchanged", listResult, listOk));
+
+  let rngOk = false;
+  try {
+    rngOk = !!(globalThis.crypto && crypto.getRandomValues)
+         && WORDS.length === 2048 && new Set(randomWords(64)).size > 1;
+  } catch (e) { rngOk = false }
+  const rngResult = rngOk ? "present and working"
+                          : "missing — do not generate a phrase here";
+  detail.push(row("Your browser’s random number generator",
+    "the “Generate” and “Pick at random” buttons depend on it", rngResult, rngOk));
+
+  const ok = calcOk + (listOk ? 1 : 0) + (rngOk ? 1 : 0);
+  const TOTAL = CALC_TOTAL + 2;
+  const all = ok === TOTAL;
+
+  // --- the three lines almost everyone actually wants -----------------------
+  const summary = [
+    row("Seed phrase calculations",
+        `${V.length} examples published in the BIP-39 standard, 12- to 24-word phrases`,
+        calcOk === CALC_TOTAL ? `all ${CALC_TOTAL} checks correct`
+                              : `${calcOk} of ${CALC_TOTAL} correct`,
+        calcOk === CALC_TOTAL),
+    row("The built-in word list",
+        "must be the official BIP-39 English list", listResult, listOk),
+    row("Your browser’s random number generator",
+        "needed by the two random buttons", rngResult, rngOk),
+  ];
+
+  $("testbody").innerHTML =
+    `<p class="verdict ${all ? "ok-c" : "bad-c"}" id="testsum">${all ? "✓" : "✕"} ${
+      all ? `All ${TOTAL} checks passed` : `${ok} of ${TOTAL} checks passed`}</p>
+     <p class="verdict-sub">${all
+       ? "This page works out seed-phrase endings correctly, and nothing in it has been "
+         + "altered since it was published."
+       : "Something is wrong. Do not use this page for a phrase that holds money. "
+         + "Re-download it from the original source and check again."}</p>
+     <p class="verdict-caveat"><b>This checks the page, not your computer.</b> It cannot tell
+       you whether your browser, its extensions, or your network are safe. See “How to run it
+       safely” above.</p>
+     <div class="scroll"><table>${summary.join("")}</table></div>
+     <details${all ? "" : " open"}>
+       <summary>Show all ${TOTAL} checks</summary>
+       <div class="scroll"><table>
+         <tr><th>What was checked</th><th>Result</th><th></th></tr>${detail.join("")}</table></div>
+     </details>`;
+  $("testout").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function netBadge() {
+  const online = navigator.onLine;
+  const local = location.protocol === "file:";
+  const b = $("badge");
+  b.className = "badge " + (online ? "on" : "off");
+  $("badgetxt").textContent = online
+    ? (local ? "Online — disconnect before entering a real phrase" : "Served over the network — save this page and run it offline")
+    : "Offline — no route out";
+}
+
+/* ---- generating words ----------------------------------------------- */
+// The wordlist is 2048 = 2^11 entries, so 11 raw bits index it directly: mask
+// off the low 11 bits of a random 16-bit draw and every word is exactly equally
+// likely. No modulo, so no modulo bias; no rejection sampling, so no branch that
+// could bias the result or silently never run. The assertion below is what makes
+// that reasoning safe — if the list were ever not a power of two, masking would
+// be wrong, and this refuses to generate rather than quietly skewing.
+const INDEX_BITS = 11;
+function randomWords(count) {
+  if (!globalThis.crypto || !crypto.getRandomValues)
+    throw new Error("no cryptographic RNG available in this browser");
+  if (WORDS.length !== (1 << INDEX_BITS))
+    throw new Error("wordlist is not 2^" + INDEX_BITS + " entries; masking would bias");
+  const buf = new Uint16Array(count);
+  crypto.getRandomValues(buf);
+  return [...buf].map(v => WORDS[v & (WORDS.length - 1)]);
+}
+
+/* ---- entropy assessment --------------------------------------------- */
+// You cannot measure the entropy of a string. Entropy is a property of the
+// process that produced it, so a genuine random draw can look terrible and a
+// hand-picked one can look fine. What IS measurable is whether the words carry
+// the fingerprints of hand-picking. Each check below asks: if an attacker
+// noticed this pattern and searched only phrases matching it, how much work
+// would be left? The answer is an upper bound on your real entropy, never a
+// proof that it is high.
+const log2 = x => Math.log(x) / Math.LN2;
+const log2Fact = k => { let t = 0; for (let i = 2; i <= k; i++) t += log2(i); return t };
+
+function assess(words) {
+  const count = words.length;
+  const idx = words.map(w => IDX.get(w));
+  const ceiling = count * 11;
+
+  const distinct = new Set(words).size;
+  const dupes = count - distinct;
+  // A repeat happens by chance about count*(count-1)/2/2048 of the time — one
+  // draw in eight at 23 words — so a single one is not evidence of anything.
+  const reused = dupes >= 2;
+  const allSame = distinct === 1;
+  // Non-decreasing AND non-increasing means every word is identical, so these
+  // are only meaningful once there is more than one distinct word.
+  const asc  = !allSame && idx.every((v, i) => i === 0 || v >= idx[i - 1]);
+  const desc = !allSame && idx.every((v, i) => i === 0 || v <= idx[i - 1]);
+  const span = Math.max(...idx) - Math.min(...idx) + 1;
+  const narrow = span < 320;
+  const letters = new Set(words.map(w => w[0])).size;
+  const neighbours = idx.slice(1).filter((v, i) => Math.abs(v - idx[i]) <= 2).length;
+
+  // An attacker exploiting the pattern still has to find the stretch of the
+  // list it was drawn from before choosing within it. Without that first term,
+  // eleven identical words score zero — as if repeating one word told them
+  // which word, when it still leaves all 2048 to guess.
+  const choices = reused ? distinct : count;
+  let bits = log2(WORDS.length - span + 1) + choices * log2(span);
+  if (asc || desc) bits -= log2Fact(choices);   // the ordering carries nothing
+  bits = Math.max(0, Math.min(bits, ceiling));
+
+  // Report the root cause, not every consequence of it. Identical words make
+  // the span, first-letter and neighbour checks fire too, and saying all six
+  // things is noise dressed up as thoroughness.
+  const flags = [];
+  if (allSame) {
+    flags.push("every word is the same");
+  } else {
+    if (reused) flags.push(`only ${distinct} different words`);
+    if (asc) flags.push("the words run in wordlist order");
+    else if (desc) flags.push("the words run in reverse wordlist order");
+    if (narrow) flags.push(`every word sits within ${span} places of the others in the list`);
+    // these only add information when neither repetition nor a narrow range
+    // already explains what is going on
+    if (!reused && !narrow) {
+      if (letters <= Math.max(2, Math.ceil(count / 4)))
+        flags.push(`only ${letters} distinct first letter${letters > 1 ? "s" : ""}`);
+      if (neighbours >= 2)
+        flags.push(`${neighbours} pairs of words sit side by side in the list`);
+    }
+  }
+
+  const band = flags.length ? (bits < ceiling * 0.75 ? "bad" : "warn")
+             : bits >= ceiling - Math.max(8, count * 0.6) ? "ok" : "warn";
+  return { count, ceiling, bits, flags, band };
+}
+
+function updateMeter() {
+  const words = $("in").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const known = words.filter(w => IDX.has(w));
+  if (known.length < 4 || known.length !== words.length) {
+    $("meter").style.display = "none"; return;
+  }
+  const a = assess(known);
+  const pct = Math.max(2, Math.round(a.bits / a.ceiling * 100));
+  const tone = a.band === "ok" ? "green" : a.band === "warn" ? "orange" : "red";
+  $("meter").style.display = "block";
+  $("mfill").style.width = pct + "%";
+  $("mfill").style.background = `var(--${tone})`;
+  $("mval").className = "mval " + (a.band === "ok" ? "ok-c" : a.band === "warn" ? "warn-c" : "bad-c");
+  $("mval").textContent = `${Math.round(a.bits)} of ${a.ceiling} bits`;
+
+  const cls = a.band === "ok" ? "ok-c" : a.band === "warn" ? "warn-c" : "bad-c";
+  $("mnote").innerHTML = a.flags.length
+    ? `<b class="${cls}">These words look hand-picked.</b> ${
+        (f => f.charAt(0).toUpperCase() + f.slice(1))(a.flags.join("; "))}. `
+      + `An attacker who spotted that would face about <b>${Math.round(a.bits)} bits</b>, `
+      + `not ${a.ceiling}. Generate them at random instead.`
+    : `<b class="${cls}">No hand-picking patterns found.</b> That is not proof your words are `
+      + `random — entropy comes from how they were chosen, not from the words themselves. `
+      + `${a.ceiling} bits holds only if every word was drawn uniformly at random.`;
+}
+
+/* ---- theme ---------------------------------------------------------- */
+const THEME_KEY = "bip39-theme";
+const store = {
+  get() { try { return localStorage.getItem(THEME_KEY) } catch (e) { return null } },
+  set(v) { try { localStorage.setItem(THEME_KEY, v) } catch (e) {} }
+};
+const prefersLight = () => matchMedia("(prefers-color-scheme: light)").matches;
+
+function applyTheme(t) {
+  if (t) document.documentElement.setAttribute("data-theme", t);
+  else document.documentElement.removeAttribute("data-theme");
+  const dark = t ? t === "dark" : !prefersLight();
+  // the button offers the theme you are not in
+  $("themeglyph").textContent = dark ? "☀" : "☾";
+  $("themetxt").textContent = dark ? "Light" : "Dark";
+}
+$("theme").onclick = () => {
+  const cur = document.documentElement.getAttribute("data-theme")
+           || (prefersLight() ? "light" : "dark");
+  const next = cur === "dark" ? "light" : "dark";
+  store.set(next); applyTheme(next);
+};
+// track the OS while no explicit choice has been made
+matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+  if (!store.get()) applyTheme(null);
+});
+applyTheme(store.get());
+updateMeter();
+
+/* ---- random pick ---------------------------------------------------- */
+// Candidate counts are always a power of two (8, 16, 32, 64 or 128), so the same
+// masking argument applies: the low log2(n) bits of a uniform byte are uniform.
+// Asserted rather than assumed.
+function randomIndex(n) {
+  if (!globalThis.crypto || !crypto.getRandomValues)
+    throw new Error("no cryptographic RNG available in this browser");
+  if (n < 1 || n > 256 || (n & (n - 1)) !== 0)
+    throw new Error("candidate count must be a power of two ≤ 256, got " + n);
+  const buf = new Uint8Array(1);
+  crypto.getRandomValues(buf);
+  return buf[0] & (n - 1);
+}
+
+$("rand").onclick = () => {
+  if (!current.length) return;
+  const chips = [...document.querySelectorAll("#grid .w")];
+  const i = randomIndex(current.length);
+  chips[i].click();
+  chips[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
+  const tail = 11 - CFG[prefix.length].cs;
+  $("randnote").style.display = "block";
+  $("randnote").textContent =
+    `Picked “${current[i]}” with crypto.getRandomValues — not Math.random. `
+    + `Choosing the ending this way adds ${tail} bits of entropy; the ${prefix.length} words `
+    + `you supplied carry the other entropy. Make sure they are selected randomly.`;
+};
+
+const copy = t => navigator.clipboard?.writeText(t).catch(() => {});
+
+$("gen").onclick = () => {
+  try {
+    $("in").value = randomWords(+$("genlen").value).join(" ");
+  } catch (e) {
+    $("st").className = "status bad";
+    $("st").textContent = "✕  " + e.message + " — do not use this page to generate a phrase.";
+    return;
+  }
+  calculate();
+};
+$("in").addEventListener("input", updateMeter);
+$("testclose").onclick = () => { $("testout").style.display = "none" };
+$("go").onclick = calculate;
+$("test").onclick = selfTest;
+$("ex").onclick = () => { $("in").value = "abandon ".repeat(11).trim(); calculate(); };
+$("clr").onclick = () => {
+  $("in").value = ""; $("out").style.display = "none"; $("testout").style.display = "none";
+  $("randnote").style.display = "none"; $("meter").style.display = "none";
+  $("st").textContent = ""; current = []; prefix = [];
+};
+$("copy").onclick = () => copy(current.join(" "));
+$("copyfull").onclick = () => copy($("full").textContent.trim());
+$("in").addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") calculate();
+});
+addEventListener("online", netBadge);
+addEventListener("offline", netBadge);
+netBadge();
+</script>
+</body>
+</html>
