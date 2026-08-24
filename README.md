@@ -210,7 +210,8 @@ Hashing uses the browser's native `crypto.subtle` — no hand-rolled SHA-256.
 
 ## The entropy meter
 
-Below the input box is a read-out of how much entropy your words carry.
+Below the input box is a read-out — labelled *How hard these words are to guess*
+— of how much entropy your words carry.
 
 **It cannot measure entropy directly, and neither can anything else.** Entropy
 is a property of the *process* that chose the words, not of the words

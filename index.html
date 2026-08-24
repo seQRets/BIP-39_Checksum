@@ -319,7 +319,7 @@
     <div class="status" id="st"></div>
     <div class="meter" id="meter" style="display:none">
       <div class="mrow">
-        <span class="mlab">Entropy of the words above</span>
+        <span class="mlab">How hard these words are to guess</span>
         <span class="mval" id="mval"></span>
       </div>
       <div class="bar"><div class="fill" id="mfill"></div></div>
@@ -421,7 +421,7 @@
       </details>
 
       <details>
-        <summary>What does the entropy read-out actually measure?</summary>
+        <summary>What does the read-out under the input box measure?</summary>
         <p>Not entropy — nothing can. Entropy is about <em>how</em> your words were chosen, not
         about the words themselves, so a genuinely random set can look terrible and a hand-picked
         one can look fine. What it actually does is hunt for the fingerprints of hand-picking:
@@ -825,11 +825,13 @@ function updateMeter() {
   $("mnote").innerHTML = a.flags.length
     ? `<b class="${cls}">These words look hand-picked.</b> ${
         (f => f.charAt(0).toUpperCase() + f.slice(1))(a.flags.join("; "))}. `
-      + `An attacker who spotted that would face about <b>${Math.round(a.bits)} bits</b>, `
-      + `not ${a.ceiling}. Generate them at random instead.`
+      + `A bit is one yes-or-no answer a guesser has to get right, and spotting that pattern `
+      + `would cut yours from ${a.ceiling} to about <b>${Math.round(a.bits)}</b> — every bit `
+      + `lost halves the work they face. Generate the words at random instead.`
     : `<b class="${cls}">No hand-picking patterns found.</b> That is not proof your words are `
-      + `random — entropy comes from how they were chosen, not from the words themselves. `
-      + `${a.ceiling} bits holds only if every word was drawn uniformly at random.`;
+      + `random — what makes a phrase strong is how the words were chosen, not which words they `
+      + `are. A bit is one yes-or-no answer a guesser has to get right, and all ${a.ceiling} of `
+      + `yours only count if every one was picked at random.`;
 }
 
 /* ---- theme ---------------------------------------------------------- */
