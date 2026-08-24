@@ -78,16 +78,10 @@ control you are relying on.
 
 ### Step 1 — Download the file, while still online
 
-Save `index.html` from the repository.
-
-There is no published fingerprint to compare it against — this project has no
-tagged releases — so taking a hash of the file proves nothing on its own here.
-The check that does the work is **Verify this page** in step 5: it compares the
-page's built-in word list against the official BIP-39 one, which is what catches
-a tampered copy.
-
-You can still take a fingerprint now and keep it, so you can tell whether a copy
-you download later has changed:
+Download `index.html` from the
+[latest release](https://github.com/seQRets/BIP-39_Checksum/releases/latest).
+Every release publishes the fingerprint of the file alongside it. Check the one
+you downloaded against it before you open it:
 
 ```bash
 # macOS
@@ -101,6 +95,12 @@ sha256sum ~/Downloads/index.html
 # Windows (PowerShell)
 Get-FileHash $HOME\Downloads\index.html -Algorithm SHA256
 ```
+
+If what you get is not the value published on the release page, stop — do not
+open the file.
+
+That tells you the file is the one published. It cannot tell you the published
+one is correct; step 5 is what checks that.
 
 ### Step 2 — Get a browser with nothing installed in it
 
