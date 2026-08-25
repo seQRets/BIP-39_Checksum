@@ -287,6 +287,34 @@ remaining 7, for the full 128 bits a 12-word phrase should carry.
 
 There is no build step. Edit `index.html` and reload.
 
+### Checking a change
+
+```bash
+node verify.js
+```
+
+`verify.js` drives the page in headless Chrome and asserts on it. It needs
+Node 22 or later and Google Chrome, and nothing else — no install step, no
+dependencies, in keeping with the rest of this repository. Set `CHROME` if the
+binary is somewhere unusual.
+
+It is deliberately not the page marking its own homework. The expected answers
+come from a separate BIP-39 implementation built on Node's `crypto` in the same
+file, so the two have to agree independently. It checks the word list hash, that
+no `Math.random` has crept in, that the page still loads nothing from anywhere
+over both `file://` and HTTP, that generated phrases validate, and that nothing
+overflows or wraps between 320px and 1440px.
+
+```bash
+node verify.js --calibrate
+```
+
+adds the check the strength read-out needs: 4,000 random draws at each phrase
+length to confirm genuine randomness almost never trips a warning, and every
+hand-picking pattern still does. Run it whenever you touch `assess()` — a plain
+`node verify.js` will fail until you do, because it tripwires on that function's
+hash.
+
 Opening the file directly works in current Chrome, Firefox, and Safari
 (`file://` is a secure context, so `crypto.subtle` is available). If your
 browser disagrees, the page says so; serve it instead:

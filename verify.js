@@ -1,0 +1,341 @@
+#!/usr/bin/env node
+'use strict';
+/*
+ * verify.js — checks index.html against the BIP-39 standard and its own invariants.
+ *
+ *   node verify.js              run every check
+ *   node verify.js --calibrate  re-measure the strength read-out (slow, ~1 min)
+ *
+ * One file, no dependencies, no install step — the same rule the page follows.
+ * Needs Node 22+ (for global WebSocket) and Google Chrome. Set CHROME to point
+ * at a different binary.
+ *
+ * The page can already check itself: "Verify this page" runs nine published
+ * BIP-39 vectors and hashes its own word list. This exists because a page
+ * should not be the only judge of whether it is correct. Everything below is
+ * worked out independently — the expected answers come from a separate BIP-39
+ * implementation built on Node's crypto, not from the page.
+ */
+
+const { spawn } = require('child_process');
+const fs = require('fs'), os = require('os'), path = require('path');
+const http = require('http'), crypto = require('crypto');
+const { pathToFileURL } = require('url');
+
+const ROOT = __dirname;
+const PAGE = path.join(ROOT, 'index.html');
+const PORT = 8899;
+const WORDLIST_SHA256 = '2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda';
+// Tripwire. assess() is tuned so genuine random draws almost never trip a
+// warning while every hand-picking pattern is still caught; changing it without
+// re-measuring both sides quietly wrecks it. If you changed it deliberately,
+// run --calibrate, confirm the numbers, then update this.
+const ASSESS_SHA256 = 'fe7d49ab746ea176';
+const ASSESS_BYTES  = 2670;
+
+let fails = 0, count = 0;
+const chk = (name, ok, extra = '') => {
+  count++; if (!ok) fails++;
+  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${extra ? '  — ' + extra : ''}`);
+};
+
+/* ---- chrome ---------------------------------------------------------- */
+function findChrome() {
+  const candidates = [process.env.CHROME,
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  ].filter(Boolean);
+  for (const c of candidates) { try { fs.accessSync(c, fs.constants.X_OK); return c } catch {} }
+  return null;
+}
+
+async function launch(bin, port = 9333) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bip39-verify-'));
+  const proc = spawn(bin, ['--headless=new', `--remote-debugging-port=${port}`,
+    `--user-data-dir=${dir}`, '--no-first-run', '--no-default-browser-check',
+    '--disable-gpu', '--disable-extensions', '--disable-background-networking',
+    '--disable-component-update', '--disable-sync', '--no-pings',
+    '--window-size=1280,900', 'about:blank'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let err = ''; proc.stderr.on('data', d => err += d);
+  for (let i = 0; i < 100; i++) {
+    try {
+      const v = await fetch(`http://127.0.0.1:${port}/json/version`).then(r => r.json());
+      return { proc, wsUrl: v.webSocketDebuggerUrl, version: v.Browser };
+    } catch { await new Promise(r => setTimeout(r, 100)); }
+  }
+  proc.kill(); throw new Error('Chrome did not start.\n' + err);
+}
+
+function connect(wsUrl) {
+  const ws = new WebSocket(wsUrl);
+  let id = 0; const pending = new Map(), listeners = [];
+  const ready = new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+  ws.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    if (m.id && pending.has(m.id)) {
+      const { res, rej } = pending.get(m.id); pending.delete(m.id);
+      m.error ? rej(new Error(JSON.stringify(m.error))) : res(m.result);
+    } else if (m.method) listeners.forEach(f => f(m));
+  };
+  const send = async (method, params = {}, sessionId) => {
+    await ready; const mid = ++id;
+    return new Promise((res, rej) => {
+      pending.set(mid, { res, rej });
+      ws.send(JSON.stringify({ id: mid, method, params, ...(sessionId ? { sessionId } : {}) }));
+    });
+  };
+  return { send, on: f => listeners.push(f) };
+}
+
+async function openPage(browser, url) {
+  const cdp = connect(browser.wsUrl);
+  const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
+  const S = (m, p) => cdp.send(m, p, sessionId);
+  const logs = [], requests = [], exceptions = [];
+  cdp.on(m => {
+    if (m.sessionId !== sessionId) return;
+    if (m.method === 'Runtime.consoleAPICalled') logs.push({ type: m.params.type });
+    if (m.method === 'Runtime.exceptionThrown')
+      exceptions.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
+    if (m.method === 'Network.requestWillBeSent') requests.push(m.params.request.url);
+  });
+  await S('Runtime.enable'); await S('Network.enable'); await S('Page.enable');
+  await S('Page.navigate', { url });
+  for (let i = 0; i < 200; i++) {
+    const r = await S('Runtime.evaluate', { expression: 'document.readyState', returnByValue: true });
+    if (r.result.value === 'complete') break;
+    await new Promise(r2 => setTimeout(r2, 50));
+  }
+  return {
+    logs, requests, exceptions, S,
+    evaluate: async expr => {
+      const r = await S('Runtime.evaluate',
+        { expression: `(async()=>{${expr}})()`, awaitPromise: true, returnByValue: true });
+      if (r.exceptionDetails)
+        throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
+      return r.result.value;
+    },
+    setViewport: (width, height) => S('Emulation.setDeviceMetricsOverride',
+      { width, height, deviceScaleFactor: 1, mobile: false }),
+    close: () => cdp.send('Target.closeTarget', { targetId }),
+  };
+}
+
+/* ---- an independent BIP-39, so the page is not its own judge ---------- */
+const SRC = fs.readFileSync(PAGE, 'utf8');
+const WORDS = SRC.match(/const WORDS = "([^"]+)"\.split\(" "\);/)[1].split(' ');
+const IDX = new Map(WORDS.map((w, i) => [w, i]));
+
+// bits -> entropy bytes -> sha256 -> compare the checksum the standard's way
+function validate(phrase) {
+  const ws = phrase.trim().split(/\s+/), n = ws.length;
+  if (![12, 15, 18, 21, 24].includes(n) || ws.some(w => !IDX.has(w))) return false;
+  const bits = ws.map(w => IDX.get(w).toString(2).padStart(11, '0')).join('');
+  const cs = n / 3, ent = bits.length - cs;
+  const bytes = Buffer.from(bits.slice(0, ent).match(/.{8}/g).map(b => parseInt(b, 2)));
+  const h = crypto.createHash('sha256').update(bytes).digest();
+  return [...h].map(x => x.toString(2).padStart(8, '0')).join('').slice(0, cs) === bits.slice(ent);
+}
+// brute force: every word that produces a valid phrase
+const brute = prefix => WORDS.filter(w => validate(prefix.join(' ') + ' ' + w));
+
+/* ---- helpers injected into the page ---------------------------------- */
+const HELPERS = `const $=id=>document.getElementById(id);
+  const wait=async(f,ms=30000)=>{const t=Date.now();while(Date.now()-t<ms){if(f())return 1;
+    await new Promise(r=>setTimeout(r,25))}return 0};`;
+
+/* ---- checks ---------------------------------------------------------- */
+function sourceChecks() {
+  console.log('--- the file itself ---');
+  chk('word list is 2048 words', WORDS.length === 2048);
+  chk('word list is the official BIP-39 English list',
+    crypto.createHash('sha256').update(WORDS.join('\n') + '\n').digest('hex') === WORDLIST_SHA256);
+  chk('no Math.random() anywhere', (SRC.match(/Math\.random\s*\(/g) || []).length === 0);
+  chk("CSP is default-src 'none'", /default-src 'none'/.test(SRC));
+  chk('CNAME and .nojekyll survive',
+    fs.existsSync(path.join(ROOT, 'CNAME')) && fs.existsSync(path.join(ROOT, '.nojekyll')));
+  chk('nothing is loaded from anywhere (no src=)',
+    [...SRC.matchAll(/\bsrc\s*=\s*"([^"]+)"/g)].length === 0);
+  const a = SRC.match(/function assess\(words\) \{[\s\S]*?\n\}\n/)[0];
+  const h = crypto.createHash('sha256').update(a).digest('hex');
+  chk('assess() unchanged (calibration still valid)',
+    h.startsWith(ASSESS_SHA256) && a.length === ASSESS_BYTES,
+    h.startsWith(ASSESS_SHA256) ? `${a.length} bytes`
+      : `changed — run --calibrate, check both sides, then update ASSESS_SHA256 to ${h.slice(0, 16)} / ${a.length}`);
+}
+
+async function pageChecks(browser, fileUrl, httpUrl) {
+  console.log('\n--- does it get the right answer? ---');
+  for (const [label, url] of [['from a file', fileUrl], ['over http', httpUrl]]) {
+    const p = await openPage(browser, url);
+    // A page broken badly enough can fail to render its own verdict at all.
+    // Report that, rather than throwing on the missing element.
+    const st = await p.evaluate(`${HELPERS} $('test').click();
+      await wait(()=>$('testsum')&&$('testsum').textContent.trim());
+      const el=$('testsum');
+      return el ? el.textContent.trim() : 'never finished — the page threw before reporting';`);
+    chk(`its own verification reads 12 of 12, ${label}`, st === '✓ All 12 checks passed', st);
+    const off = p.requests.filter(u => !u.startsWith(url.replace(/\/$/, '')) && !u.startsWith(url));
+    chk(`nothing is fetched from anywhere, ${label}`, off.length === 0, off.join(','));
+    chk(`no script errors, ${label}`, p.exceptions.length === 0, p.exceptions.join(' | '));
+    await p.close();
+  }
+
+  const p = await openPage(browser, fileUrl);
+  const c = await p.evaluate(`
+    const a11=await candidates(Array(11).fill('abandon'));
+    const a23=await candidates(Array(23).fill('abandon'));
+    return {a11,a23:a23.join(' ')};`);
+  const ref11 = brute(Array(11).fill('abandon'));
+  chk('abandon x11 matches an independent implementation, word for word',
+    JSON.stringify(c.a11) === JSON.stringify(ref11), `${c.a11.length} vs ${ref11.length}`);
+  chk('abandon x23 gives the published answer',
+    c.a23 === brute(Array(23).fill('abandon')).join(' '), c.a23);
+
+  const EXPECT = { 11: 128, 14: 64, 17: 32, 20: 16, 23: 8 };
+  const gen = await p.evaluate(`${HELPERS}
+    const out=[];
+    for (const o of $('genlen').options) {
+      const want=${JSON.stringify(EXPECT)}[o.value];
+      for (let k=0;k<6;k++){
+        $('clr').click(); await wait(()=>$('out').style.display==='none');
+        $('genlen').value=o.value; $('gen').click();
+        if(!await wait(()=>$('out').style.display==='block'
+          && document.querySelectorAll('#grid .w').length===want
+          && $('st').textContent.startsWith('✓'))) return {err:'timed out at '+o.value+' words'};
+        const input=$('in').value.trim();
+        $('rand').click();
+        if(!await wait(()=>$('full').style.display==='block')) return {err:'pick at random timed out'};
+        const full=$('full').textContent.trim().replace(/\\s+/g,' ');
+        if(!full.startsWith(input+' ')) return {err:'built phrase does not start with the words supplied'};
+        out.push(full);
+      }
+    } return {out};`);
+  chk('generate, calculate and pick work at all five lengths', !gen.err, gen.err || '');
+  if (gen.out) {
+    const bad = gen.out.filter(x => !validate(x));
+    chk(`all ${gen.out.length} generated phrases are valid BIP-39 (checked independently)`,
+      bad.length === 0, bad.slice(0, 2).join(' | '));
+  }
+
+  console.log('\n--- how it looks ---');
+  const links = await p.evaluate(
+    `return [...document.querySelectorAll('a')].map(a=>({href:a.href,target:a.target,rel:a.rel,w:a.getBoundingClientRect().width}));`);
+  chk('the two outbound links are present and safe',
+    links.length === 2 &&
+    links.some(l => l.href === 'https://github.com/seQRets/BIP-39_Checksum') &&
+    links.some(l => l.href === 'https://coinos.io/seqrets') &&
+    links.every(l => l.target === '_blank' && /noopener/.test(l.rel) && /noreferrer/.test(l.rel) && l.w > 40));
+
+  await p.evaluate(`${HELPERS} $('in').value='abandon '.repeat(11).trim(); $('go').click();
+    await wait(()=>$('out').style.display==='block'&&document.querySelectorAll('#grid .w').length===128);
+    $('test').click(); await wait(()=>$('testsum')&&$('testsum').textContent.trim());
+    document.querySelectorAll('#testbody details').forEach(d=>d.open=true); return 1;`);
+  for (const w of [320, 360, 390, 414, 768, 1024, 1440]) {
+    await p.setViewport(w, 900);
+    const m = await p.evaluate(`
+      const de=document.documentElement, vw=de.clientWidth, bad=[];
+      document.querySelectorAll('body *').forEach(el=>{const r=el.getBoundingClientRect();
+        if(!r.width&&!r.height)return;
+        if(r.right>vw+1||r.left<-1){let q=el.parentElement,sc=false;
+          while(q&&q!==document.body){const o=getComputedStyle(q).overflowX;
+            if(o==='auto'||o==='scroll'){sc=true;break}q=q.parentElement}
+          if(!sc)bad.push(el.tagName+'.'+String(el.className).slice(0,24))}});
+      const chips=[...document.querySelectorAll('#grid .w')];
+      return {vw,sw:de.scrollWidth,over:bad.length,bad:bad.slice(0,3),
+        cols:new Set(chips.map(c=>Math.round(c.getBoundingClientRect().left))).size,
+        narrowest:Math.min(...chips.map(c=>Math.round(c.getBoundingClientRect().width))),
+        wrapped:chips.filter(c=>c.getBoundingClientRect().height>44).length};`);
+    // 132px is what a chip needs for the longest word plus the highest index
+    chk(`${String(w).padStart(4)}px — no sideways scroll, ${m.cols} column(s), words fit on one line`,
+      m.sw <= m.vw && m.over === 0 && m.narrowest >= 132 && m.wrapped === 0,
+      `scrollWidth ${m.sw} of ${m.vw}, narrowest chip ${m.narrowest}px, ${m.wrapped} wrapped ${m.bad.join(',')}`);
+  }
+  await p.setViewport(1280, 900);
+  const order = await p.evaluate(`
+    const chips=[...document.querySelectorAll('#grid .w')].map(e=>e.firstChild.textContent);
+    return { display:getComputedStyle(document.getElementById('grid')).display,
+             sorted:JSON.stringify(chips)===JSON.stringify([...chips].sort((a,b)=>IDX.get(a)-IDX.get(b))) };`);
+  chk('candidates read top-to-bottom (columns, not a grid)',
+    order.sorted && order.display === 'block', JSON.stringify(order));
+  chk('no console errors', p.logs.filter(l => /error/i.test(l.type)).length === 0);
+  await p.close();
+}
+
+/* ---- calibration ------------------------------------------------------ */
+async function calibrate(browser, fileUrl) {
+  console.log('\n--- strength read-out calibration (4,000 draws per length) ---');
+  const p = await openPage(browser, fileUrl);
+  const r = await p.evaluate(`
+    const out={false_alarms:{},patterns:{}};
+    for (const L of [11,14,17,20,23]) {
+      let flagged=0;
+      for (let i=0;i<4000;i++) if (assess(randomWords(L)).flags.length) flagged++;
+      out.false_alarms[L]=+(flagged/4000*100).toFixed(3);
+    }
+    const at=i=>WORDS[i];
+    const cases={
+      'identical x11':Array(11).fill('abandon'),
+      'identical x23':Array(23).fill('zoo'),
+      'two alternating':Array.from({length:11},(_,i)=>i%2?'zoo':'abandon'),
+      'wordlist order':Array.from({length:11},(_,i)=>at(i*37)),
+      'reverse order':Array.from({length:11},(_,i)=>at(i*37)).reverse(),
+      'narrow slice':Array.from({length:11},(_,i)=>at(100+i*7)),
+      'one first letter':WORDS.filter(w=>w[0]==='s').slice(0,11),
+      'first 11 of list':WORDS.slice(0,11),
+      'consecutive run':WORDS.slice(900,923),
+    };
+    for (const [k,v] of Object.entries(cases)) {
+      const a=assess(v);
+      out.patterns[k]={caught:a.flags.length>0,bits:Math.round(a.bits),ceiling:a.ceiling};
+    }
+    return out;`);
+  console.log('  false alarms on genuine random draws — these should stay near zero:');
+  for (const [L, pct] of Object.entries(r.false_alarms))
+    console.log(`    ${String(L).padStart(2)} words: ${String(pct).padStart(6)}%`);
+  console.log('  hand-picking patterns — every one must be caught:');
+  let missed = 0;
+  for (const [k, v] of Object.entries(r.patterns)) {
+    if (!v.caught) missed++;
+    console.log(`    ${v.caught ? 'caught ' : 'MISSED!'} ${k.padEnd(18)} ${v.bits}/${v.ceiling} bits`);
+  }
+  chk('every hand-picking pattern is still caught', missed === 0, `${missed} missed`);
+  const worst = Math.max(...Object.values(r.false_alarms));
+  chk('false alarms stay under 2% at every length', worst < 2, `worst ${worst}%`);
+  await p.close();
+}
+
+/* ---- run -------------------------------------------------------------- */
+(async () => {
+  const bin = findChrome();
+  if (!bin) {
+    console.error('Could not find Chrome. Install it, or set CHROME to the binary.');
+    process.exit(2);
+  }
+  sourceChecks();
+
+  const server = http.createServer((req, res) => {
+    const f = path.join(ROOT, req.url === '/' ? 'index.html' : path.normalize(req.url).replace(/^(\.\.[\/\\])+/, ''));
+    fs.readFile(f, (err, data) => {
+      if (err) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': f.endsWith('.html') ? 'text/html; charset=utf-8' : 'text/plain' });
+      res.end(data);
+    });
+  });
+  await new Promise(r => server.listen(PORT, '127.0.0.1', r));
+
+  const browser = await launch(bin);
+  try {
+    const fileUrl = pathToFileURL(PAGE).href;
+    await pageChecks(browser, fileUrl, `http://localhost:${PORT}/`);
+    if (process.argv.includes('--calibrate')) await calibrate(browser, fileUrl);
+  } finally {
+    browser.proc.kill();
+    server.close();
+  }
+  console.log(`\n${fails === 0 ? `all ${count} checks passed` : `${fails} of ${count} checks FAILED`}`);
+  process.exit(fails === 0 ? 0 : 1);
+})().catch(e => { console.error('\nverify.js could not run:', e.message); process.exit(2); });
