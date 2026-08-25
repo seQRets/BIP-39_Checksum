@@ -188,6 +188,17 @@ function sourceChecks() {
     chk('favicon still matches BIP-39-logo.svg', source === inIcon,
       source === inIcon ? '' : 're-encode the source into the icon data URI');
   }
+  // The fingerprint is written by hand in two places: the footer's markup and the
+  // WORDLIST_SHA256 constant the built-in verification compares against. Editing
+  // one and not the other would show a value different from the one being used.
+  const brief = h => h ? h.slice(0, 8) + '\u2026' + h.slice(-8) : '(not found)';
+  const shown = (SRC.match(/id="wlhash"[\s\S]*?>([0-9a-f]{64})<\/button>/) || [])[1];
+  const constant = (SRC.match(/WORDLIST_SHA256 = "([0-9a-f]{64})"/) || [])[1];
+  const realHash = crypto.createHash('sha256').update(WORDS.join('\n') + '\n').digest('hex');
+  chk('the fingerprint shown, the one checked and the real one all agree',
+    shown === constant && constant === realHash,
+    (shown === constant && constant === realHash) ? ''
+      : `footer shows ${brief(shown)}, the code checks ${brief(constant)}, the list hashes to ${brief(realHash)}`);
   const a = SRC.match(/function assess\(words\) \{[\s\S]*?\n\}\n/)[0];
   const h = crypto.createHash('sha256').update(a).digest('hex');
   chk('assess() unchanged (calibration still valid)',
