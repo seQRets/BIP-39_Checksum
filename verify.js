@@ -159,6 +159,21 @@ function sourceChecks() {
     fs.existsSync(path.join(ROOT, 'CNAME')) && fs.existsSync(path.join(ROOT, '.nojekyll')));
   chk('nothing is loaded from anywhere (no src=)',
     [...SRC.matchAll(/\bsrc\s*=\s*"([^"]+)"/g)].length === 0);
+  // The logo is inlined into index.html for the no-network rule, with
+  // BIP-39-logo.svg kept as the editable source. Two copies drift; this
+  // compares what actually draws the mark, ignoring whitespace and wrapper.
+  const logoFile = path.join(ROOT, 'BIP-39-logo.svg');
+  if (fs.existsSync(logoFile)) {
+    const shape = t => {
+      const d = (t.match(/\sd="([^"]+)"/) || [])[1] || '';
+      const stops = [...t.matchAll(/stop-color="([^"]+)"/g)].map(m => m[1]).join(',');
+      const circle = (t.match(/<circle[^>]*r="([\d.]+)"/) || [])[1] || '';
+      return JSON.stringify({ d: d.replace(/\s+/g, ' ').trim(), stops, circle });
+    };
+    const same = shape(fs.readFileSync(logoFile, 'utf8')) === shape(SRC);
+    chk('inlined logo still matches BIP-39-logo.svg', same,
+      same ? '' : 're-inline the source into index.html, or delete it if it is no longer the source');
+  }
   const a = SRC.match(/function assess\(words\) \{[\s\S]*?\n\}\n/)[0];
   const h = crypto.createHash('sha256').update(a).digest('hex');
   chk('assess() unchanged (calibration still valid)',

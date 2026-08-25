@@ -66,7 +66,10 @@
   .topline{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.4rem}
   .kicker{display:flex;align-items:center;gap:14px;min-width:0}
   #theme{flex:none;padding:.45rem .8rem;font-size:.68rem}
-  .kicker .dash{width:52px;height:2px;background:var(--orange);flex:none}
+  /* The logo is inlined, not linked: an <img src> would be a network request and
+     break the one promise this page makes. Source: BIP-39-logo.svg, which
+     verify.js checks against this copy so the two cannot drift apart. */
+  .kicker .mark{width:30px;height:30px;flex:none;display:block}
   .kicker .label{font-size:.75rem;font-weight:700;letter-spacing:.32em;color:var(--accent-ink)}
   h1{font-size:clamp(2.1rem,5.5vw,3.5rem);font-weight:800;letter-spacing:-.02em;
      line-height:1.04;margin-bottom:1rem}
@@ -253,7 +256,33 @@
 <div class="topbar"></div>
 <main>
   <div class="topline">
-    <div class="kicker"><div class="dash"></div><div class="label">BIP-39 CHECKSUM</div></div>
+    <div class="kicker">
+      <svg class="mark" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+        <defs>
+          <radialGradient id="btcBgGrad" cx="35%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#FFD000"></stop>
+            <stop offset="50%" stop-color="#FF9100"></stop>
+            <stop offset="100%" stop-color="#E04000"></stop>
+          </radialGradient>
+        </defs>
+        <circle cx="250" cy="250" r="218" fill="url(#btcBgGrad)"></circle>
+        <g transform="rotate(14 250 250)">
+          <path fill="#FFFFFF" fill-rule="evenodd" d="
+            M 205,115 H 225 V 145 H 245 V 115 H 275 V 145 
+            C 315,145 345,160 345,195 
+            C 345,218 330,234 310,242 
+            C 338,252 355,270 355,302 
+            C 355,342 320,355 275,355 
+            V 385 H 245 V 355 H 225 V 385 H 205 V 355 H 160 V 310 H 205 V 190 H 160 V 145 H 205 Z
+            
+            M 245,185 V 230 H 270 C 288,230 300,222 300,207.5 C 300,193 288,185 270,185 Z
+            
+            M 245,268 V 315 H 275 C 295,315 310,305 310,291.5 C 310,278 295,268 275,268 Z
+          "></path>
+        </g>
+      </svg>
+      <div class="label">BIP-39 CHECKSUM</div>
+    </div>
     <button id="theme" type="button" aria-label="Switch colour theme"><span id="themeglyph">☀</span> <span id="themetxt">Light</span></button>
   </div>
   <h1>The last word is <em>not yours</em> to choose.</h1>
