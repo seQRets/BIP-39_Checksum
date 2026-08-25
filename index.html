@@ -249,9 +249,31 @@
   .flinks .g{color:var(--accent-ink);font-size:1.05em;letter-spacing:0}
   .flinknote{flex-basis:100%;font-size:.74rem;color:var(--dim);margin-top:.8rem;
     letter-spacing:.01em;text-transform:none;font-weight:400}
+  /* 64 monospace characters dominate the footer on a phone. Shortened by default,
+     full on tap. The value is written by the script from the same constant the
+     verification checks, so the two cannot disagree. */
+  .hash{font-family:var(--mono);font-size:.86em;color:var(--code-ink);
+    background:var(--code-bg);border:0;border-radius:5px;padding:.1em .4em;
+    cursor:pointer;letter-spacing:0;text-transform:none;font-weight:400;
+    overflow-wrap:anywhere;text-align:left}
+  .hash:hover{color:var(--ink)}
+  .hash:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
   .prov{overflow-wrap:anywhere;font-size:.78rem;color:var(--dim);line-height:1.8;margin-top:1.1rem;
     letter-spacing:.01em;text-transform:none;font-weight:400;flex-basis:100%}
   @media(max-width:640px){ main{padding-top:3.5rem} .stats{gap:1.75rem} }
+  /* On a phone the flex row wraps at whatever widths the labels happen to make,
+     which reads as accidental. Two even columns instead: the primary action and
+     the long labels take the full width, the two short input actions pair up. */
+  @media(max-width:560px){
+    /* auto-fit, so a 320px screen falls back to one column rather than squeezing
+       two too-narrow ones; tighter letter-spacing and padding keep the longest
+       paired label on a single line. */
+    .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));
+         gap:.55rem;align-items:stretch}
+    .row .primary,.row select,#test,#gen,#rand,#copy,#copyfull{grid-column:1 / -1}
+    .row button,.row select{width:100%;padding-left:.6rem;padding-right:.6rem;
+                            letter-spacing:.06em}
+  }
 </style>
 <script>try{var t=localStorage.getItem("bip39-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 </head>
@@ -335,8 +357,8 @@
     <div class="row">
       <button class="primary" id="go">Find checksum words</button>
       <button id="ex">Load example</button>
-      <button id="test">Verify this page</button>
       <button id="clr">Clear</button>
+      <button id="test">Verify this page</button>
     </div>
     <div class="row">
       <select id="genlen" aria-label="How many words to generate">
@@ -511,7 +533,8 @@
     <div class="r">TOOTHJOCKEY LLC · RUNS OFFLINE</div>
     <div class="prov">
       Wordlist: the official BIP-39 English list from <code>bitcoin/bips</code> (MIT), embedded verbatim —
-      SHA-256 <code>2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda</code>.
+      SHA-256 <button type="button" class="hash" id="wlhash" aria-expanded="false"
+      title="Show the whole value">2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda</button>.
       Hashing uses the browser's native <code>crypto.subtle</code>. No fonts, scripts, styles or
       images are loaded from anywhere.<br>
       Copyright © 2026 Toothjockey LLC — MIT licensed, and open source so you can check all of this.
@@ -939,6 +962,16 @@ $("gen").onclick = () => {
     return;
   }
   calculate();
+};
+// The footer's word-list fingerprint comes from the same constant the
+// verification compares against, so the two can never drift apart.
+const shortHash = h => h.slice(0, 8) + "…" + h.slice(-8);
+$("wlhash").textContent = shortHash(WORDLIST_SHA256);
+$("wlhash").onclick = () => {
+  const open = $("wlhash").getAttribute("aria-expanded") === "true";
+  $("wlhash").textContent = open ? shortHash(WORDLIST_SHA256) : WORDLIST_SHA256;
+  $("wlhash").setAttribute("aria-expanded", String(!open));
+  $("wlhash").title = open ? "Show the whole value" : "Shorten";
 };
 $("in").addEventListener("input", updateMeter);
 $("testclose").onclick = () => { $("testout").style.display = "none" };
