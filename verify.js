@@ -154,7 +154,13 @@ function sourceChecks() {
   chk('word list is the official BIP-39 English list',
     crypto.createHash('sha256').update(WORDS.join('\n') + '\n').digest('hex') === WORDLIST_SHA256);
   chk('no Math.random() anywhere', (SRC.match(/Math\.random\s*\(/g) || []).length === 0);
-  chk("CSP is default-src 'none'", /default-src 'none'/.test(SRC));
+  const csp = (SRC.match(/http-equiv="Content-Security-Policy"[\s\S]*?content="([^"]+)"/) || [])[1] || '';
+  // The favicon needs img-src data:. That is inline, not a fetch. What must never
+  // appear is a source that can reach the network — a scheme, a host, or a wildcard.
+  const reachesNetwork = /https?:|\/\/|\*/.test(csp);
+  chk("CSP is default-src 'none' with no network source",
+    /default-src 'none'/.test(csp) && !reachesNetwork,
+    reachesNetwork ? 'CSP now permits a network origin: ' + csp : '');
   chk('CNAME and .nojekyll survive',
     fs.existsSync(path.join(ROOT, 'CNAME')) && fs.existsSync(path.join(ROOT, '.nojekyll')));
   chk('nothing is loaded from anywhere (no src=)',
@@ -165,14 +171,22 @@ function sourceChecks() {
   const logoFile = path.join(ROOT, 'BIP-39-logo.svg');
   if (fs.existsSync(logoFile)) {
     const shape = t => {
-      const d = (t.match(/\sd="([^"]+)"/) || [])[1] || '';
-      const stops = [...t.matchAll(/stop-color="([^"]+)"/g)].map(m => m[1]).join(',');
-      const circle = (t.match(/<circle[^>]*r="([\d.]+)"/) || [])[1] || '';
+      const d = (t.match(/\sd=['"]([^'"]+)['"]/) || [])[1] || '';
+      const stops = [...t.matchAll(/stop-color=['"]([^'"]+)['"]/g)].map(m => m[1]).join(',');
+      const circle = (t.match(/<circle[^>]*r=['"]([\d.]+)['"]/) || [])[1] || '';
       return JSON.stringify({ d: d.replace(/\s+/g, ' ').trim(), stops, circle });
     };
-    const same = shape(fs.readFileSync(logoFile, 'utf8')) === shape(SRC);
-    chk('inlined logo still matches BIP-39-logo.svg', same,
-      same ? '' : 're-inline the source into index.html, or delete it if it is no longer the source');
+    const source = shape(fs.readFileSync(logoFile, 'utf8'));
+    // scope to the header mark: the favicon's encoded copy sits earlier in the file
+    const headerSvg = (SRC.match(/<svg class="mark"[\s\S]*?<\/svg>/) || [''])[0];
+    const inHeader = shape(headerSvg);
+    // the mark exists three times now: source file, header <svg>, favicon data URI
+    const icon = (SRC.match(/<link rel="icon" href="([^"]+)"/) || [])[1] || '';
+    const inIcon = shape(decodeURIComponent(icon));
+    chk('header logo still matches BIP-39-logo.svg', source === inHeader,
+      source === inHeader ? '' : 're-inline the source into index.html');
+    chk('favicon still matches BIP-39-logo.svg', source === inIcon,
+      source === inIcon ? '' : 're-encode the source into the icon data URI');
   }
   const a = SRC.match(/function assess\(words\) \{[\s\S]*?\n\}\n/)[0];
   const h = crypto.createHash('sha256').update(a).digest('hex');

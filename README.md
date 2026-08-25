@@ -44,9 +44,11 @@ For any phrase holding real funds: save the page, disconnect, then open it.
 The page never sends anything anywhere, and it tells your browser to refuse if
 it ever tried — nothing is fetched from the internet at all, not a typeface, not
 an image, not a line of code. (In technical terms: a `Content-Security-Policy`
-meta tag set to `default-src 'none'`.) But that only makes *this page* safe, not
-your browser or your computer. A badge at the top tells you whether you are
-currently online.
+meta tag set to `default-src 'none'`, with one exception — `img-src data:`, which
+allows the favicon that is written into the page itself. `data:` is inline, not a
+fetch, so no network source is permitted by any directive.) But that only makes
+*this page* safe, not your browser or your computer. A badge at the top tells you
+whether you are currently online.
 
 If your phrase holds real money, do not just click the live link and start
 typing. Work through this once; it takes about ten minutes.
@@ -297,6 +299,11 @@ node verify.js
 Node 22 or later and Google Chrome, and nothing else — no install step, no
 dependencies, in keeping with the rest of this repository. Set `CHROME` if the
 binary is somewhere unusual.
+
+It also refuses any Content-Security-Policy that names a network origin, and
+checks that the logo — which exists three times over, as `BIP-39-logo.svg`, as
+the inline mark in the header, and as the favicon's data URI — is the same
+artwork in all three.
 
 It is deliberately not the page marking its own homework. The expected answers
 come from a separate BIP-39 implementation built on Node's `crypto` in the same
