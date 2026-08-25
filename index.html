@@ -826,8 +826,9 @@ function updateMeter() {
     ? `<b class="${cls}">These words look hand-picked.</b> ${
         (f => f.charAt(0).toUpperCase() + f.slice(1))(a.flags.join("; "))}. `
       + `A bit is one yes-or-no answer a guesser has to get right, and spotting that pattern `
-      + `would cut yours from ${a.ceiling} to about <b>${Math.round(a.bits)}</b> — every bit `
-      + `lost halves the work they face. Generate the words at random instead.`
+      + `would cut yours from ${a.ceiling} to <b>at most ${Math.round(a.bits)}</b>, possibly `
+      + `far fewer — every bit lost halves the work they face. This can see the pattern, not `
+      + `how predictably you chose. Generate the words at random instead.`
     : `<b class="${cls}">No hand-picking patterns found.</b> That is not proof your words are `
       + `random — what makes a phrase strong is how the words were chosen, not which words they `
       + `are. A bit is one yes-or-no answer a guesser has to get right, and all ${a.ceiling} of `
