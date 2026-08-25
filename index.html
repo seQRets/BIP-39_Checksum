@@ -142,7 +142,10 @@
   /* Multi-column, not grid: candidates read top-to-bottom, then left-to-right,
      so scanning down a column follows the wordlist order. Column count and
      balancing are handled by the browser, so it survives any resize. */
-  .grid{columns:10rem;column-gap:.4rem}
+  /* Column width, not a grid: the list must read top-to-bottom then left-to-right.
+     9rem gives two columns on a phone instead of one 128-item stack. A chip needs
+     132px for the widest case ("abstract" + index 2047); 9rem never goes below 144. */
+  .grid{columns:9rem;column-gap:.4rem}
   .w{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;
     padding:.5rem .75rem;border-radius:8px;background:var(--panel2);
     border:1px solid var(--line2);cursor:pointer;font:14px/1.4 var(--mono);
