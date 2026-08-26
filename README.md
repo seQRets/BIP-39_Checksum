@@ -22,11 +22,15 @@ it returns every ending that produces a valid phrase.
 | 21 | 20 | 7 | 16 |
 | 24 | 23 | 8 | 8 |
 
-**Generate at random** fills the box with 11, 14, 17, 20 or 23 words from the
-browser's random number generator, the one built for security work
-(`crypto.getRandomValues`). Combined with a random ending that gives a fully
-valid phrase carrying all the randomness its length allows — 128 bits for 12
-words, 256 for 24.
+**Generate a complete phrase** produces a wallet-ready phrase in one press: it
+draws 11, 14, 17, 20 or 23 words from the browser's random number generator,
+the one built for security work (`crypto.getRandomValues`), works out every
+valid ending, and picks one uniformly. That is standard BIP-39 generation
+reached from the other end — for 24 words, 23 uniform words carry 253 bits and
+the uniform pick among 8 endings supplies the last 3, the same 256 bits as
+"generate the entropy, append the checksum." **Generate partial phrase** stops
+before the ending, so you can watch the checksum narrow the choices and pick
+one yourself.
 
 Click any candidate to assemble the full phrase, or **Pick at random** to have
 one chosen for you. That pick uses the same generator, never `Math.random` —
@@ -138,7 +142,7 @@ Two checks before you type anything real:
 
 1. The badge near the top should read **"Offline — no route out"** in green. If
    it still says *Online*, something is still connected — go back to step 3.
-2. Press **Verify this page**. It must say **12 of 12 checks passed**. That
+2. Press **Verify this page**. It must say **13 of 13 checks passed**. That
    confirms the calculator gets the right answer on example phrases whose
    correct answers are published in the BIP-39 standard, and that its built-in
    word list has not been altered. It checks the *page* — it can tell you
@@ -183,10 +187,10 @@ phrases whose correct answers are published in the BIP-39 standard, and confirms
 this page produces each one — with the right number of options and no
 duplicates. It then hashes the built-in word list and compares it against the
 official file, and checks that a real cryptographic RNG is present. It should
-read **12 of 12 checks passed**.
+read **13 of 13 checks passed**.
 
 By default it shows three lines — the calculations, the word list, the random
-number generator — each either pass or fail. *Show all 12 checks* expands the
+number generator — each either pass or fail. *Show all 13 checks* expands the
 full breakdown for anyone who wants it, and opens by itself if anything failed.
 
 That wordlist check is the one verification that survives someone tampering with

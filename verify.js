@@ -24,7 +24,6 @@ const { pathToFileURL } = require('url');
 
 const ROOT = __dirname;
 const PAGE = path.join(ROOT, 'index.html');
-const PORT = 8899;
 const WORDLIST_SHA256 = '2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda';
 // Tripwire. assess() is tuned so genuine random draws almost never trip a
 // warning while every hand-picking pattern is still caught; changing it without
@@ -217,7 +216,7 @@ async function pageChecks(browser, fileUrl, httpUrl) {
       await wait(()=>$('testsum')&&$('testsum').textContent.trim());
       const el=$('testsum');
       return el ? el.textContent.trim() : 'never finished — the page threw before reporting';`);
-    chk(`its own verification reads 12 of 12, ${label}`, st === '✓ All 12 checks passed', st);
+    chk(`its own verification reads 13 of 13, ${label}`, st === '✓ All 13 checks passed', st);
     const off = p.requests.filter(u => !u.startsWith(url.replace(/\/$/, '')) && !u.startsWith(url));
     chk(`nothing is fetched from anywhere, ${label}`, off.length === 0, off.join(','));
     chk(`no script errors, ${label}`, p.exceptions.length === 0, p.exceptions.join(' | '));
@@ -259,6 +258,28 @@ async function pageChecks(browser, fileUrl, httpUrl) {
     const bad = gen.out.filter(x => !validate(x));
     chk(`all ${gen.out.length} generated phrases are valid BIP-39 (checked independently)`,
       bad.length === 0, bad.slice(0, 2).join(' | '));
+  }
+
+  // the one-press button, driven exactly as a user would press it
+  const one = await p.evaluate(`${HELPERS}
+    const out=[];
+    for (const o of $('genlen').options) {
+      $('clr').click(); await wait(()=>$('out').style.display==='none');
+      $('genlen').value=o.value; $('genfull').click();
+      if(!await wait(()=>$('full').style.display==='block'
+        && document.querySelectorAll('#grid .w.sel').length===1)) return {err:'timed out at '+o.value};
+      out.push({ phrase: $('full').textContent.trim().replace(/\\s+/g,' '),
+                 note: $('randnote').textContent,
+                 clip: $('cliphint').style.display==='block' });
+    } return {out};`);
+  chk('"Generate a complete phrase" builds and shows a phrase at all 5 lengths', !one.err, one.err || '');
+  if (one.out) {
+    chk('all one-press phrases are valid BIP-39 (checked independently)',
+      one.out.every(x => validate(x.phrase)),
+      one.out.filter(x => !validate(x.phrase)).map(x => x.phrase).slice(0, 1).join(''));
+    const oneBad = one.out.find(x => !x.clip || !/came from your browser/.test(x.note));
+    chk('one-press marks the pick, shows the note and the clipboard warning',
+      !oneBad, oneBad ? JSON.stringify(oneBad).slice(0, 100) : '');
   }
 
   console.log('\n--- how it looks ---');
@@ -365,7 +386,10 @@ async function calibrate(browser, fileUrl) {
       res.end(data);
     });
   });
-  await new Promise(r => server.listen(PORT, '127.0.0.1', r));
+  // port 0: the OS assigns a free one, so this never collides with a dev
+  // server someone already has running on the usual port
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const PORT = server.address().port;
 
   const browser = await launch(bin);
   try {

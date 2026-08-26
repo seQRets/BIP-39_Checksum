@@ -126,9 +126,18 @@
   button.primary:hover{background:var(--gold);border-color:var(--gold);color:#000}
   .hint{font-size:.78rem;color:var(--dim);margin-top:.9rem;letter-spacing:.02em}
   select{font-family:var(--sans);font-size:.82rem;font-weight:700;letter-spacing:.08em;
-    text-transform:uppercase;padding:.7rem .8rem;border-radius:9px;cursor:pointer;
-    border:1px solid var(--line);background:var(--panel);color:var(--muted);
-    max-width:100%}
+    text-transform:uppercase;padding:.7rem 2.2rem .7rem .8rem;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line);color:var(--muted);max-width:100%;
+    /* the browser draws its own arrow hard against the border; this replaces it
+       with a small caret sitting a comfortable step in. Gradients are CSS, not
+       images — nothing is fetched and the CSP is untouched. */
+    appearance:none;-webkit-appearance:none;background:var(--panel)
+      linear-gradient(45deg,transparent 49%,var(--muted) 51%) no-repeat
+      calc(100% - 1.35rem) 52%/.32rem .32rem;
+    background-image:linear-gradient(45deg,transparent 49%,var(--muted) 51%),
+                     linear-gradient(135deg,var(--muted) 51%,transparent 49%);
+    background-position:calc(100% - 1.5rem) 52%,calc(100% - 1.18rem) 52%;
+    background-size:.32rem .32rem;background-repeat:no-repeat}
   select:hover{border-color:rgba(247,147,26,.5);color:var(--ink)}
   .meter{margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--line2)}
   #inputcard,#meter{scroll-margin-top:1.25rem}
@@ -270,9 +279,14 @@
        paired label on a single line. */
     .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));
          gap:.55rem;align-items:stretch}
-    .row .primary,.row select,#test,#gen,#rand,#copy,#copyfull{grid-column:1 / -1}
+    .row .primary,.row select,#test,#gen,#genfull,#rand,#copy,#copyfull{grid-column:1 / -1}
     .row button,.row select{width:100%;padding-left:.6rem;padding-right:.6rem;
                             letter-spacing:.06em}
+  }
+  /* the generate labels are the longest on the page; the very narrowest
+     screens need slightly smaller type to keep them on one line */
+  @media(max-width:344px){
+    #genfull,#gen{font-size:.72rem;letter-spacing:.03em}
   }
 </style>
 <script>try{var t=localStorage.getItem("bip39-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
@@ -342,7 +356,7 @@
         <li>Turn off Wi-Fi and unplug any network cable.</li>
         <li>Open a private window in that profile and drag the saved file onto it.</li>
         <li>Check the badge below reads <b>Offline — no route out</b>, then press
-            <b>Verify this page</b> and confirm it says <b>12 of 12 checks passed</b>.</li>
+            <b>Verify this page</b> and confirm it says <b>13 of 13 checks passed</b>.</li>
         <li>Write the phrase down by hand — never the copy buttons — then quit the browser
             completely before reconnecting.</li>
       </ol>
@@ -368,11 +382,13 @@
         <option value="20">20 words → 21-word phrase</option>
         <option value="23">23 words → 24-word phrase</option>
       </select>
-      <button id="gen">Generate at random</button>
+      <button id="gen">Generate partial phrase</button>
+      <button class="primary" id="genfull">Generate a complete phrase</button>
     </div>
-    <div class="hint">⌘/Ctrl + Enter to calculate. Generated words come from your browser’s
-      random number generator, the one built for security work. Nothing is saved, recorded or
-      sent anywhere.</div>
+    <div class="hint">⌘/Ctrl + Enter to calculate. Both generate buttons draw from your
+      browser’s random number generator, the one built for security work. A partial phrase stops
+      one word short, so you can watch the checksum narrow the endings and pick one yourself; a
+      complete phrase is finished for you. Nothing is saved, recorded or sent anywhere.</div>
     <div class="status" id="st"></div>
     <div class="meter" id="meter" style="display:none">
       <div class="mrow">
@@ -475,6 +491,10 @@
         draw lands on a word directly instead of being squeezed down to fit. That matters:
         squeezing is what makes some words come up slightly more often than others. Here every
         word is exactly as likely as every other.</p>
+        <p>Both generate buttons use it — <b>Generate a complete phrase</b> draws every word
+        including the ending in one press, and <b>Generate partial phrase</b> stops one word
+        short so you can see the checksum at work and choose the ending yourself. Either way
+        ends at the same place: a phrase whose every word came from the generator.</p>
       </details>
 
       <details>
@@ -525,7 +545,7 @@
         <p>So if the phrase is real, do it the other way round: save this page, disconnect from
         the network, open it in a browser profile with no extensions, and work through the six
         steps at the top. And if you only want to see how this works, you do not need a real
-        phrase at all — press <b>Load example</b>, or <b>Generate at random</b>.</p>
+        phrase at all — press <b>Load example</b>, or either generate button.</p>
       </details>
 
       <details>
@@ -630,12 +650,12 @@ async function calculate() {
   updateMeter();
   if (err) {
     $("st").className = "status bad"; $("st").textContent = "✕  " + err;
-    $("out").style.display = "none"; return;
+    $("out").style.display = "none"; return false;
   }
   if (!globalThis.crypto || !crypto.subtle) {
     $("st").className = "status bad";
     $("st").textContent = "✕  This browser will not do the maths from a file opened directly. Serve the page over http://localhost instead.";
-    return;
+    return false;
   }
   $("st").className = "status"; $("st").textContent = "Working…";
   prefix = words;
@@ -666,6 +686,7 @@ async function calculate() {
   });
   $("out").style.display = "block";
   revealResults();
+  return true;
 }
 
 // Scroll far enough to show that endings were produced, without pushing the
@@ -734,6 +755,39 @@ async function selfTest() {
   if (low) calcOk++;
   const CALC_TOTAL = V.length + 1;
 
+  // --- the whole-phrase button, end to end --------------------------------
+  // Runs exactly what the button runs: draw, work out the endings, pick one.
+  // A phrase is only right if its own prefix produces it, so the ending is
+  // checked against candidates() rather than assumed. Repeats are drawn too:
+  // identical phrases would mean the randomness is not reaching the output.
+  let genOk = false, genResult = "";
+  try {
+    const lengths = Object.keys(CFG).map(Number);
+    const made = [];
+    for (const k of lengths) {
+      const words = randomWords(k);
+      const ends = await candidates(words);
+      const pick = ends[randomIndex(ends.length)];
+      made.push({ k, ends, pick, phrase: [...words, pick] });
+    }
+    const rightLength = made.every(m => m.phrase.length === CFG[m.k].n);
+    const accepted = made.every(m => m.ends.includes(m.pick));
+    const repeats = new Set();
+    for (let i = 0; i < 4; i++) {
+      const w = randomWords(23);
+      const e = await candidates(w);
+      repeats.add([...w, e[randomIndex(e.length)]].join(" "));
+    }
+    genOk = rightLength && accepted && repeats.size === 4;
+    genResult = !rightLength ? "wrong number of words"
+              : !accepted ? "chose an ending its own checksum rejects"
+              : repeats.size !== 4 ? "repeated draws came out identical"
+              : `all ${lengths.length} lengths valid, repeated draws all different`;
+  } catch (e) { genOk = false; genResult = "failed — " + e.message }
+  detail.push(row("Phrases it generates for you",
+    "every word drawn at random, and the ending must be one its own checksum accepts",
+    genResult, genOk));
+
   detail.push(`<tr class="grp"><td colspan="3">Has this page been tampered with?</td></tr>`);
 
   const listHash = await sha256Text(WORDS.join("\n") + "\n");
@@ -751,10 +805,10 @@ async function selfTest() {
   const rngResult = rngOk ? "present and working"
                           : "missing — do not generate a phrase here";
   detail.push(row("Your browser’s random number generator",
-    "the “Generate” and “Pick at random” buttons depend on it", rngResult, rngOk));
+    "the generate and “Pick at random” buttons depend on it", rngResult, rngOk));
 
-  const ok = calcOk + (listOk ? 1 : 0) + (rngOk ? 1 : 0);
-  const TOTAL = CALC_TOTAL + 2;
+  const ok = calcOk + (genOk ? 1 : 0) + (listOk ? 1 : 0) + (rngOk ? 1 : 0);
+  const TOTAL = CALC_TOTAL + 3;
   const all = ok === TOTAL;
 
   // --- the three lines almost everyone actually wants -----------------------
@@ -764,6 +818,8 @@ async function selfTest() {
         calcOk === CALC_TOTAL ? `all ${CALC_TOTAL} checks correct`
                               : `${calcOk} of ${CALC_TOTAL} correct`,
         calcOk === CALC_TOTAL),
+    row("Phrases it generates for you",
+        "drawn at random, then checked against the calculation above", genResult, genOk),
     row("The built-in word list",
         "must be the official BIP-39 English list", listResult, listOk),
     row("Your browser’s random number generator",
@@ -956,19 +1012,48 @@ function randomIndex(n) {
   return buf[0] & (n - 1);
 }
 
-$("rand").onclick = () => {
+// Choosing the ending. Clicking the chip is what builds the phrase, so this
+// clicks it rather than duplicating that code. `whole` only changes the note:
+// when every word came from the generator the caveat about hand-picked words
+// no longer applies, and the opposite needs saying instead.
+function pickAtRandom(whole) {
   if (!current.length) return;
   const chips = [...document.querySelectorAll("#grid .w")];
   const i = randomIndex(current.length);
   chips[i].click();
-  chips[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
-  const tail = 11 - CFG[prefix.length].cs;
+  const cfg = CFG[prefix.length];
+  const tail = 11 - cfg.cs;
   $("randnote").style.display = "block";
-  $("randnote").textContent =
-    `Picked “${current[i]}” with your browser’s random number generator, the one built for `
-    + `security work. Letting it choose the ending is worth ${tail} yes-or-no answers of `
-    + `randomness — all the rest has to come from the ${prefix.length} words you supplied, so `
-    + `those need to have been chosen at random too.`;
+  $("randnote").textContent = whole
+    ? `All ${cfg.n} words came from your browser’s random number generator, the one built for `
+      + `security work — the ${prefix.length} above plus the ending it just picked. Nothing was `
+      + `chosen by hand, which is what makes this a real phrase rather than a demonstration. A `
+      + `wallet will accept it as it stands. Write it down by hand before you do anything else.`
+    : `Picked “${current[i]}” with your browser’s random number generator, the one built for `
+      + `security work. Letting it choose the ending is worth ${tail} yes-or-no answers of `
+      + `randomness — all the rest has to come from the ${prefix.length} words you supplied, so `
+      + `those need to have been chosen at random too.`;
+  (whole ? $("full") : chips[i]).scrollIntoView(
+    { block: whole ? "center" : "nearest", behavior: "smooth" });
+}
+$("rand").onclick = () => pickAtRandom(false);
+
+// The whole phrase in one press. No new arithmetic: it is the three steps the
+// page already does, run back to back — draw the words, work out which endings
+// the checksum allows, pick one of them uniformly. For 24 words that is 23
+// uniform words carrying 253 bits plus a uniform choice among 8 endings
+// carrying the last 3, which is the same 256 bits BIP-39 specifies, reached
+// from the other end.
+$("genfull").onclick = async () => {
+  try {
+    $("in").value = randomWords(+$("genlen").value).join(" ");
+  } catch (e) {
+    $("st").className = "status bad";
+    $("st").textContent = "✕  " + e.message + " — do not use this page to generate a phrase.";
+    return;
+  }
+  // calculate() has already said why if it could not finish
+  if (await calculate()) pickAtRandom(true);
 };
 
 const copy = t => navigator.clipboard?.writeText(t).catch(() => {});
