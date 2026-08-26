@@ -296,7 +296,7 @@
        paired label on a single line. */
     .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));
          gap:.55rem;align-items:stretch}
-    .row .primary,.row select,#test,#gen,#genfull,#rand,#copy{grid-column:1 / -1}
+    .row .primary,.row select,#test,#gen,#genfull,#rand{grid-column:1 / -1}
     .row button,.row select{width:100%;padding-left:.6rem;padding-right:.6rem;
                             letter-spacing:.06em}
   }
@@ -458,7 +458,6 @@
     </div>
     <div class="row">
       <button id="rand">Pick at random</button>
-      <button id="copy">Copy candidates</button>
     </div>
     <div class="hint" id="cliphint" style="display:none">⚠︎ Copying a full phrase puts it on
       your clipboard, where any program running on your computer can read it. Apps that keep a
@@ -1201,7 +1200,6 @@ $("clr").onclick = () => {
   $("randnote").style.display = "none"; $("meter").style.display = "none";
   $("st").textContent = ""; current = []; prefix = [];
 };
-$("copy").onclick = () => copy(current.join(" "));
 $("fpeek").onclick = () => {
   const hidden = $("full").classList.toggle("shield");
   $("fpeek").setAttribute("aria-pressed", String(!hidden));
