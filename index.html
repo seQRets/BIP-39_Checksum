@@ -114,6 +114,18 @@
     border-radius:12px;background:var(--field);color:var(--ink);resize:vertical;
     font:15px/1.9 var(--mono);letter-spacing:.02em}
   textarea::placeholder{color:var(--dim)}
+  /* A generated seed arrives hidden: transparent text with a soft shadow blurs
+     it without blurring the box, so a shoulder-surfer sees smudges, not words.
+     The eye button lifts it. */
+  textarea.shield{color:transparent;text-shadow:0 0 .55em var(--muted);caret-color:transparent}
+  .inwrap{position:relative}
+  .inwrap.on textarea{padding-right:5.2rem}
+  .inctl{position:absolute;top:.6rem;right:.8rem;display:flex;gap:.35rem}
+  .ictl{padding:.4rem;border-radius:7px;line-height:0;cursor:pointer;
+    border:1px solid var(--line);background:var(--panel);color:var(--muted)}
+  .ictl:hover{color:var(--ink);border-color:rgba(247,147,26,.5)}
+  .ictl:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+  .ictl svg{width:16px;height:16px}
   textarea:focus{outline:none;border-color:rgba(247,147,26,.6);
     box-shadow:0 0 0 3px rgba(247,147,26,.09)}
   .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-top:1rem}
@@ -174,6 +186,11 @@
     border-radius:12px;background:rgba(247,147,26,.05);font:14px/2 var(--mono);
     word-spacing:.35em;color:var(--ink)}
   .full .n{color:var(--accent-ink);font-weight:700}
+  .fullwrap{position:relative}
+  .fullwrap.on .full{padding-right:5.2rem}
+  .fullctl{position:absolute;top:.65rem;right:.7rem;display:flex;gap:.35rem}
+  /* placed after .full .n so the hide covers the highlighted last word too */
+  .full.shield,.full.shield .n{color:transparent;text-shadow:0 0 .55em var(--muted)}
 
   /* ---- tables ---- */
   .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -279,7 +296,7 @@
        paired label on a single line. */
     .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));
          gap:.55rem;align-items:stretch}
-    .row .primary,.row select,#test,#gen,#genfull,#rand,#copy,#copyfull{grid-column:1 / -1}
+    .row .primary,.row select,#test,#gen,#genfull,#rand,#copy{grid-column:1 / -1}
     .row button,.row select{width:100%;padding-left:.6rem;padding-right:.6rem;
                             letter-spacing:.06em}
   }
@@ -366,8 +383,22 @@
   <div class="card" id="inputcard">
     <div id="badge" class="badge on"><span class="led"></span><span id="badgetxt">Checking…</span></div>
     <div class="h">Your words — 11, 14, 17, 20 or 23</div>
+    <div class="inwrap" id="inwrap">
     <textarea id="in" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
-      placeholder="paste your incomplete seed phrase, separated by spaces"></textarea>
+      placeholder="type, paste or generate an incomplete seed, separated by spaces — or generate a complete seed instead"></textarea>
+    <div class="inctl" id="inctl" style="display:none">
+      <button class="ictl" id="peek" type="button" aria-label="Show the seed" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>
+          <line id="peekslash" x1="4" y1="21" x2="20" y2="3" style="display:none"/>
+        </svg></button>
+      <button class="ictl" id="incopy" type="button" aria-label="Copy the seed">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg></button>
+    </div>
+    </div>
+    <div class="hint" id="inhint" style="display:none"></div>
     <div class="row">
       <button class="primary" id="go">Find checksum words</button>
       <button id="ex">Load example</button>
@@ -376,19 +407,19 @@
     </div>
     <div class="row">
       <select id="genlen" aria-label="How many words to generate">
-        <option value="11">11 words → 12-word phrase</option>
-        <option value="14">14 words → 15-word phrase</option>
-        <option value="17">17 words → 18-word phrase</option>
-        <option value="20">20 words → 21-word phrase</option>
-        <option value="23">23 words → 24-word phrase</option>
+        <option value="11">11 words → 12-word seed</option>
+        <option value="14">14 words → 15-word seed</option>
+        <option value="17">17 words → 18-word seed</option>
+        <option value="20">20 words → 21-word seed</option>
+        <option value="23">23 words → 24-word seed</option>
       </select>
-      <button id="gen">Generate partial phrase</button>
-      <button class="primary" id="genfull">Generate a complete phrase</button>
+      <button id="gen">Generate partial seed</button>
+      <button class="primary" id="genfull">Generate complete seed</button>
     </div>
     <div class="hint">⌘/Ctrl + Enter to calculate. Both generate buttons draw from your
-      browser’s random number generator, the one built for security work. A partial phrase stops
+      browser’s random number generator, the one built for security work. A partial seed stops
       one word short, so you can watch the checksum narrow the endings and pick one yourself; a
-      complete phrase is finished for you. Nothing is saved, recorded or sent anywhere.</div>
+      complete seed is finished for you. Nothing is saved, recorded or sent anywhere.</div>
     <div class="status" id="st"></div>
     <div class="meter" id="meter" style="display:none">
       <div class="mrow">
@@ -411,11 +442,23 @@
   <div class="card" id="out" style="display:none">
     <div class="h on" id="outlbl"></div>
     <div class="grid" id="grid"></div>
+    <div class="fullwrap" id="fullwrap">
     <div class="full" id="full" style="display:none"></div>
+    <div class="fullctl" id="fullctl" style="display:none">
+      <button class="ictl" id="fpeek" type="button" aria-label="Show the phrase" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>
+          <line id="fpeekslash" x1="4" y1="21" x2="20" y2="3" style="display:none"/>
+        </svg></button>
+      <button class="ictl" id="fcopy" type="button" aria-label="Copy the phrase">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg></button>
+    </div>
+    </div>
     <div class="row">
       <button id="rand">Pick at random</button>
       <button id="copy">Copy candidates</button>
-      <button id="copyfull" style="display:none">Copy full phrase</button>
     </div>
     <div class="hint" id="cliphint" style="display:none">⚠︎ Copying a full phrase puts it on
       your clipboard, where any program running on your computer can read it. Apps that keep a
@@ -491,8 +534,8 @@
         draw lands on a word directly instead of being squeezed down to fit. That matters:
         squeezing is what makes some words come up slightly more often than others. Here every
         word is exactly as likely as every other.</p>
-        <p>Both generate buttons use it — <b>Generate a complete phrase</b> draws every word
-        including the ending in one press, and <b>Generate partial phrase</b> stops one word
+        <p>Both generate buttons use it — <b>Generate complete seed</b> draws every word
+        including the ending in one press, and <b>Generate partial seed</b> stops one word
         short so you can see the checksum at work and choose the ending yourself. Either way
         ends at the same place: a phrase whose every word came from the generator.</p>
       </details>
@@ -640,11 +683,34 @@ function parse(raw) {
 
 const $ = id => document.getElementById(id);
 let current = [], prefix = [];
+// True after "Generate complete seed": the finished seed lives in the input box
+// and choosing among the endings updates it there. False in the manual flow,
+// where the assembled phrase is shown beneath the grid instead.
+let whole = false;
+
+function shieldOn() {
+  $("in").classList.add("shield");
+  $("inwrap").classList.add("on");
+  $("inctl").style.display = "flex";
+  $("peek").setAttribute("aria-pressed", "false");
+  $("peek").setAttribute("aria-label", "Show the seed");
+  $("peekslash").style.display = "none";
+}
+function shieldReset() {
+  whole = false;
+  $("in").classList.remove("shield");
+  $("inwrap").classList.remove("on");
+  $("inctl").style.display = "none";
+  $("inhint").style.display = "none";
+}
 
 async function calculate() {
+  shieldReset();
   const { words, err } = parse($("in").value);
   $("full").style.display = "none";
-  $("copyfull").style.display = "none";
+  $("full").classList.remove("shield");
+  $("fullctl").style.display = "none";
+  $("fullwrap").classList.remove("on");
   $("cliphint").style.display = "none";
   $("randnote").style.display = "none";
   updateMeter();
@@ -674,13 +740,26 @@ async function calculate() {
     el.onclick = () => {
       document.querySelectorAll(".w.sel").forEach(x => x.classList.remove("sel"));
       el.classList.add("sel");
+      if (whole) {
+        // the seed lives in the box above; choosing an ending updates it there
+        $("in").value = [...prefix, w].join(" ");
+        updateMeter();
+        return;
+      }
       $("full").innerHTML = "";
       prefix.forEach(p => $("full").append(document.createTextNode(p + " ")));
       const last = document.createElement("span"); last.className = "n"; last.textContent = w;
       $("full").append(last);
       $("full").style.display = "block";
-      $("copyfull").style.display = "inline-block";
-      $("cliphint").style.display = "block";
+      if ($("fullctl").style.display === "none") {
+        // first assembly since this calculation: hidden until the eye says otherwise
+        $("full").classList.add("shield");
+        $("fpeek").setAttribute("aria-pressed", "false");
+        $("fpeek").setAttribute("aria-label", "Show the phrase");
+        $("fpeekslash").style.display = "none";
+      }
+      $("fullctl").style.display = "flex";
+      $("fullwrap").classList.add("on");
     };
     $("grid").appendChild(el);
   });
@@ -1016,27 +1095,31 @@ function randomIndex(n) {
 // clicks it rather than duplicating that code. `whole` only changes the note:
 // when every word came from the generator the caveat about hand-picked words
 // no longer applies, and the opposite needs saying instead.
-function pickAtRandom(whole) {
+function pickAtRandom() {
   if (!current.length) return;
   const chips = [...document.querySelectorAll("#grid .w")];
   const i = randomIndex(current.length);
-  chips[i].click();
+  chips[i].click();                     // routes to the box or the block below by mode
   const cfg = CFG[prefix.length];
   const tail = 11 - cfg.cs;
+  if (whole) {
+    $("inhint").style.display = "block";
+    $("inhint").textContent =
+      `All ${cfg.n} words came from your browser’s random number generator, the one built for `
+      + `security work — nothing was chosen by hand, which is what makes this a real seed `
+      + `rather than a demonstration. A wallet will accept it as it stands. Write it down by `
+      + `hand before you do anything else.`;
+    return;
+  }
+  chips[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
   $("randnote").style.display = "block";
-  $("randnote").textContent = whole
-    ? `All ${cfg.n} words came from your browser’s random number generator, the one built for `
-      + `security work — the ${prefix.length} above plus the ending it just picked. Nothing was `
-      + `chosen by hand, which is what makes this a real phrase rather than a demonstration. A `
-      + `wallet will accept it as it stands. Write it down by hand before you do anything else.`
-    : `Picked “${current[i]}” with your browser’s random number generator, the one built for `
-      + `security work. Letting it choose the ending is worth ${tail} yes-or-no answers of `
-      + `randomness — all the rest has to come from the ${prefix.length} words you supplied, so `
-      + `those need to have been chosen at random too.`;
-  (whole ? $("full") : chips[i]).scrollIntoView(
-    { block: whole ? "center" : "nearest", behavior: "smooth" });
+  $("randnote").textContent =
+    `Picked “${current[i]}” with your browser’s random number generator, the one built for `
+    + `security work. Letting it choose the ending is worth ${tail} yes-or-no answers of `
+    + `randomness — all the rest has to come from the ${prefix.length} words you supplied, so `
+    + `those need to have been chosen at random too.`;
 }
-$("rand").onclick = () => pickAtRandom(false);
+$("rand").onclick = () => pickAtRandom();
 
 // The whole phrase in one press. No new arithmetic: it is the three steps the
 // page already does, run back to back — draw the words, work out which endings
@@ -1053,7 +1136,31 @@ $("genfull").onclick = async () => {
     return;
   }
   // calculate() has already said why if it could not finish
-  if (await calculate()) pickAtRandom(true);
+  if (!await calculate()) return;
+  whole = true;
+  pickAtRandom();
+  const cfg = CFG[prefix.length];
+  $("st").textContent = `✓  Complete ${cfg.n}-word seed in the box above — its ending was `
+    + `picked from the ${current.length} valid endings below.`;
+  // it arrives hidden; the eye reveals it
+  shieldOn();
+  // a nudge, not a journey: enough scroll to show the endings exist
+  scrollBy({ top: 170, behavior: "smooth" });
+};
+
+/* ---- the in-box controls ------------------------------------------- */
+$("peek").onclick = () => {
+  const hidden = $("in").classList.toggle("shield");
+  $("peek").setAttribute("aria-pressed", String(!hidden));
+  $("peek").setAttribute("aria-label", hidden ? "Show the seed" : "Hide the seed");
+  $("peekslash").style.display = hidden ? "none" : "block";
+};
+$("incopy").onclick = () => {
+  copy($("in").value.trim());
+  $("inhint").style.display = "block";
+  $("inhint").textContent = "⚠︎ Copied. The clipboard can be read by any program running on "
+    + "this computer, and a Mac will pass it to your iPhone and iPad. For a seed that will "
+    + "hold real money, write it down by hand instead.";
 };
 
 const copy = t => navigator.clipboard?.writeText(t).catch(() => {});
@@ -1078,18 +1185,33 @@ $("wlhash").onclick = () => {
   $("wlhash").setAttribute("aria-expanded", String(!open));
   $("wlhash").title = open ? "Show the whole value" : "Shorten";
 };
-$("in").addEventListener("input", updateMeter);
+$("in").addEventListener("input", () => {
+  // editing by hand means the box no longer holds the untouched generated
+  // seed — drop the blur and its controls rather than hide typing
+  if ($("inctl").style.display !== "none") shieldReset();
+  updateMeter();
+});
 $("testclose").onclick = () => { $("testout").style.display = "none" };
 $("go").onclick = calculate;
 $("test").onclick = selfTest;
 $("ex").onclick = () => { $("in").value = "abandon ".repeat(11).trim(); calculate(); };
 $("clr").onclick = () => {
+  shieldReset();
   $("in").value = ""; $("out").style.display = "none"; $("testout").style.display = "none";
   $("randnote").style.display = "none"; $("meter").style.display = "none";
   $("st").textContent = ""; current = []; prefix = [];
 };
 $("copy").onclick = () => copy(current.join(" "));
-$("copyfull").onclick = () => copy($("full").textContent.trim());
+$("fpeek").onclick = () => {
+  const hidden = $("full").classList.toggle("shield");
+  $("fpeek").setAttribute("aria-pressed", String(!hidden));
+  $("fpeek").setAttribute("aria-label", hidden ? "Show the phrase" : "Hide the phrase");
+  $("fpeekslash").style.display = hidden ? "none" : "block";
+};
+$("fcopy").onclick = () => {
+  copy($("full").textContent.trim());
+  $("cliphint").style.display = "block";
+};
 $("in").addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") calculate();
 });

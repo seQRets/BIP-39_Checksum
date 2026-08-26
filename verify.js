@@ -254,32 +254,76 @@ async function pageChecks(browser, fileUrl, httpUrl) {
       }
     } return {out};`);
   chk('generate, calculate and pick work at all five lengths', !gen.err, gen.err || '');
+  // the manual flow's assembled-phrase controls: visible on arrival, the eye
+  // hides the whole line including the highlighted last word, copy warns
+  const manual = await p.evaluate(`${HELPERS}
+    $('clr').click(); await wait(()=>$('out').style.display==='none');
+    $('genlen').value='11'; $('gen').click();
+    if(!await wait(()=>$('out').style.display==='block'
+      && document.querySelectorAll('#grid .w').length===128)) return {err:'grid timeout'};
+    document.querySelector('#grid .w').click();
+    if(!await wait(()=>$('full').style.display==='block')) return {err:'full timeout'};
+    const r={ ctl: $('fullctl').style.display!=='none',
+              blurredFirst: $('full').classList.contains('shield'),
+              lastWordHidden: getComputedStyle(document.querySelector('#full .n')).color==='rgba(0, 0, 0, 0)',
+              warnNotYet: $('cliphint').style.display==='none' };
+    $('fpeek').click(); r.reveals = !$('full').classList.contains('shield');
+    // choosing another ending keeps the user's choice rather than re-hiding
+    document.querySelectorAll('#grid .w')[1].click();
+    r.staysRevealed = !$('full').classList.contains('shield');
+    $('fpeek').click(); r.rehides = $('full').classList.contains('shield');
+    $('fcopy').click(); r.warnAfterCopy = $('cliphint').style.display==='block';
+    r.noOldButton = !document.getElementById('copyfull');
+    return r;`);
+  chk('assembled phrase arrives blurred; eye reveals and survives re-choosing',
+    !manual.err && manual.ctl && manual.blurredFirst && manual.lastWordHidden
+      && manual.warnNotYet && manual.reveals && manual.staysRevealed
+      && manual.rehides && manual.warnAfterCopy && manual.noOldButton,
+    manual.err || JSON.stringify(manual));
   if (gen.out) {
     const bad = gen.out.filter(x => !validate(x));
     chk(`all ${gen.out.length} generated phrases are valid BIP-39 (checked independently)`,
       bad.length === 0, bad.slice(0, 2).join(' | '));
   }
 
-  // the one-press button, driven exactly as a user would press it
+  // the one-press button, driven exactly as a user would press it. The seed
+  // lands in the input box, blurred, with the eye and copy controls beside it.
   const one = await p.evaluate(`${HELPERS}
     const out=[];
     for (const o of $('genlen').options) {
       $('clr').click(); await wait(()=>$('out').style.display==='none');
       $('genlen').value=o.value; $('genfull').click();
-      if(!await wait(()=>$('full').style.display==='block'
-        && document.querySelectorAll('#grid .w.sel').length===1)) return {err:'timed out at '+o.value};
-      out.push({ phrase: $('full').textContent.trim().replace(/\\s+/g,' '),
-                 note: $('randnote').textContent,
-                 clip: $('cliphint').style.display==='block' });
+      if(!await wait(()=>document.querySelectorAll('#grid .w.sel').length===1
+        && $('in').classList.contains('shield')
+        && $('inctl').style.display!=='none')) return {err:'timed out at '+o.value};
+      const rec={ phrase: $('in').value.trim(),
+                  blurred: $('in').classList.contains('shield'),
+                  note: $('inhint').textContent,
+                  lowerBlockHidden: $('full').style.display!=='block' };
+      // the eye reveals, and reveals only when pressed
+      $('peek').click(); rec.unblurs = !$('in').classList.contains('shield');
+      $('peek').click(); rec.reblurs = $('in').classList.contains('shield');
+      // choosing a different ending updates the box, not the block below
+      const other=[...document.querySelectorAll('#grid .w')].find(w=>!w.classList.contains('sel'));
+      other.click(); rec.rechoose = $('in').value.trim();
+      rec.stillNoLowerBlock = $('full').style.display!=='block';
+      // copying surfaces the clipboard warning
+      $('incopy').click(); rec.copyWarn = /clipboard/i.test($('inhint').textContent);
+      out.push(rec);
     } return {out};`);
-  chk('"Generate a complete phrase" builds and shows a phrase at all 5 lengths', !one.err, one.err || '');
+  chk('"Generate complete seed" puts a blurred seed in the box at all 5 lengths', !one.err, one.err || '');
   if (one.out) {
-    chk('all one-press phrases are valid BIP-39 (checked independently)',
+    chk('all one-press seeds are valid BIP-39 (checked independently)',
       one.out.every(x => validate(x.phrase)),
       one.out.filter(x => !validate(x.phrase)).map(x => x.phrase).slice(0, 1).join(''));
-    const oneBad = one.out.find(x => !x.clip || !/came from your browser/.test(x.note));
-    chk('one-press marks the pick, shows the note and the clipboard warning',
-      !oneBad, oneBad ? JSON.stringify(oneBad).slice(0, 100) : '');
+    chk('re-choosing an ending updates the box and stays valid',
+      one.out.every(x => validate(x.rechoose) && x.rechoose !== x.phrase),
+      one.out.filter(x => !validate(x.rechoose)).map(x => x.rechoose).slice(0, 1).join(''));
+    const oneBad = one.out.find(x => !x.blurred || !x.unblurs || !x.reblurs
+      || !/came from your browser/.test(x.note) || !x.copyWarn
+      || !x.lowerBlockHidden || !x.stillNoLowerBlock);
+    chk('blur, eye toggle, copy warning and no duplicate block below',
+      !oneBad, oneBad ? JSON.stringify(oneBad).slice(0, 140) : '');
   }
 
   console.log('\n--- how it looks ---');

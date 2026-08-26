@@ -22,15 +22,23 @@ it returns every ending that produces a valid phrase.
 | 21 | 20 | 7 | 16 |
 | 24 | 23 | 8 | 8 |
 
-**Generate a complete phrase** produces a wallet-ready phrase in one press: it
+**Generate complete seed** produces a wallet-ready phrase in one press: it
 draws 11, 14, 17, 20 or 23 words from the browser's random number generator,
 the one built for security work (`crypto.getRandomValues`), works out every
 valid ending, and picks one uniformly. That is standard BIP-39 generation
 reached from the other end — for 24 words, 23 uniform words carry 253 bits and
 the uniform pick among 8 endings supplies the last 3, the same 256 bits as
-"generate the entropy, append the checksum." **Generate partial phrase** stops
+"generate the entropy, append the checksum." **Generate partial seed** stops
 before the ending, so you can watch the checksum narrow the choices and pick
 one yourself.
+
+A generated seed lands in the input box **blurred**, so it is not readable over
+your shoulder — and the phrase assembled beneath the candidate list arrives the
+same way; an eye control beside it reveals it, and a copy control copies it
+— with the usual warning that the clipboard can be read by anything running on
+the machine. The valid endings stay listed below with the picked word marked,
+and clicking a different one swaps the ending in the box. Editing the box by
+hand dismisses the blur and its controls.
 
 Click any candidate to assemble the full phrase, or **Pick at random** to have
 one chosen for you. That pick uses the same generator, never `Math.random` —
