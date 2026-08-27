@@ -6,11 +6,11 @@
 
 Report it privately:
 
-1. **[Open a private security advisory](https://github.com/seQRets/BIP-39_Checksum/security/advisories/new)** — preferred
+1. **[Open a private security advisory](https://github.com/seQRets/My-Seed-Phrase/security/advisories/new)** — preferred
 2. Or email **security@seqrets.app**
 
 Machine-readable contact details are published at
-[`/.well-known/security.txt`](https://bip39checksum.com/.well-known/security.txt),
+[`/.well-known/security.txt`](https://myseedphrase.app/.well-known/security.txt),
 per [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116).
 
 Include what you did, what happened, what you expected instead, and your browser
@@ -54,5 +54,5 @@ things that matter are specific.
 
 ## Supported versions
 
-The published page at <https://bip39checksum.com> and the current `main` branch.
+The published page at <https://myseedphrase.app> and the current `main` branch.
 There are no releases or version branches to support.

@@ -476,7 +476,7 @@ async function pageChecks(browser, fileUrl, httpUrl) {
     `return [...document.querySelectorAll('a')].map(a=>({href:a.href,target:a.target,rel:a.rel,w:a.getBoundingClientRect().width}));`);
   chk('the three outbound links are present and safe',
     links.length === 3 &&
-    links.some(l => l.href === 'https://github.com/seQRets/BIP-39_Checksum') &&
+    links.some(l => l.href === 'https://github.com/seQRets/My-Seed-Phrase') &&
     links.some(l => l.href === 'https://coinos.io/seQRets/receive') &&
     links.some(l => l.href === 'https://mypassphrase.app/') &&
     links.every(l => l.target === '_blank' && /noopener/.test(l.rel) && /noreferrer/.test(l.rel) && l.w > 40));

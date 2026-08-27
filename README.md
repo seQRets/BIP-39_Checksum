@@ -7,7 +7,7 @@ wallets that scan a seed in.
 A single self-contained HTML file. No build step, no dependencies, no network —
 open it and it works, online or off.
 
-**Live:** <https://bip39checksum.com>
+**Live:** <https://myseedphrase.app>
 
 ## What it does
 
@@ -113,7 +113,7 @@ control you are relying on.
 ### Step 1 — Download the file, while still online
 
 Download `index.html` from the
-[latest release](https://github.com/seQRets/BIP-39_Checksum/releases/latest).
+[latest release](https://github.com/seQRets/My-Seed-Phrase/releases/latest).
 Every release publishes the fingerprint of the file alongside it. Check the one
 you downloaded against it before you open it:
 
@@ -437,9 +437,9 @@ which is exactly the confusion typosquatting depends on.
 ## Reporting a problem
 
 Security contact details are published at
-[`/.well-known/security.txt`](https://bip39checksum.com/.well-known/security.txt)
+[`/.well-known/security.txt`](https://myseedphrase.app/.well-known/security.txt)
 per [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116). Preferred route is a
-[private vulnerability report](https://github.com/seQRets/BIP-39_Checksum/security/advisories/new)
+[private vulnerability report](https://github.com/seQRets/My-Seed-Phrase/security/advisories/new)
 on this repository; `security@seqrets.app` also reaches us.
 
 There is no backend, no database and no network call, so the findings that
