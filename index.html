@@ -3755,8 +3755,13 @@ $("clr").onclick = () => {
   $("randnote").style.display = "none"; $("meter").style.display = "none";
   $("st").textContent = ""; current = []; prefix = [];
 };
-$("in").addEventListener("keydown", e => {
-  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") calculate();
+// The hint promises this shortcut without qualification, so it must work from
+// anywhere on the page — it used to listen only on the box, which meant it
+// went dead the moment a button click moved focus away. The one exception is
+// the QR modal: nothing should recalculate underneath it.
+addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter"
+      && $("qrveil").style.display === "none") calculate();
 });
 addEventListener("online", netBadge);
 addEventListener("offline", netBadge);

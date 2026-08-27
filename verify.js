@@ -290,6 +290,16 @@ async function pageChecks(browser, fileUrl, httpUrl) {
              ctl: $('inctl').style.display!=='none',
              qrHidden: $('inqr').style.display==='none',
              guided: /choose the ending/i.test($('inhint').textContent) };`);
+  const kbd = await p.evaluate(`${HELPERS}
+    $('clr').click(); await wait(()=>$('out').style.display==='none');
+    $('in').value='abandon '.repeat(11).trim();
+    document.body.focus();  // focus explicitly NOT in the box
+    dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true}));
+    const worked = await wait(()=>$('out').style.display==='block'
+      && document.querySelectorAll('#grid .w').length===128);
+    return { worked };`);
+  chk('Cmd/Ctrl+Enter calculates with focus anywhere on the page',
+      !kbd.err && kbd.worked, kbd.err || JSON.stringify(kbd));
   chk('a generated partial seed arrives blurred, QR withheld until complete',
     !partial.err && partial.blurred && partial.ctl && partial.qrHidden && partial.guided,
     partial.err || JSON.stringify(partial));
