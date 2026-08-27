@@ -195,7 +195,8 @@
   .qrhead .h{margin-bottom:0}
   button.qrx{padding:.1rem .5rem .25rem;font-size:1.25rem;line-height:1;font-weight:400;
     letter-spacing:0;text-transform:none}
-  .qrbox{background:#fff;border-radius:12px;padding:10px;display:inline-block;line-height:0}
+  .qrbox{background:#fff;border-radius:12px;padding:10px;line-height:0;
+    display:block;width:fit-content;margin:0 auto}
   .qrbox canvas{width:100%;max-width:248px;height:auto;image-rendering:pixelated}
   /* The QR opens blurred — a QR is machine-readable at a glance, so it stays
      smudged until the eye says otherwise, and the reveal is never sticky. */
@@ -267,8 +268,11 @@
   summary{cursor:pointer;color:var(--dim);font-size:.8rem;font-weight:700;
     letter-spacing:.14em;text-transform:uppercase;list-style:none}
   summary::-webkit-details-marker{display:none}
-  summary::before{content:'▸ ';color:var(--accent-ink)}
-  details[open] summary::before{content:'▾ '}
+  /* the disclosure caret at the summary's own .8rem was easy to miss entirely;
+     one and a half em makes it read as a control */
+  summary::before{content:'▸';color:var(--accent-ink);font-size:1.5em;
+    line-height:0;vertical-align:-.1em;margin-right:.4em}
+  details[open] summary::before{content:'▾'}
   details p{font-size:.9rem;color:var(--muted);margin-top:.8rem;line-height:1.6}
 
   footer{border-top:1px solid var(--line);margin-top:2.6rem;padding-top:1.5rem;
