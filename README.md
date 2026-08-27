@@ -1,4 +1,4 @@
-# BIP-39 Last Word
+# My Seed Phrase
 
 Generate a complete BIP-39 seed phrase, or find every valid final word for the
 words you already have. Complete seeds can be shown as a standard SeedQR for
