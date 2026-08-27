@@ -645,12 +645,12 @@
       </div>
       <div class="qrbox" id="qrbox"><canvas id="qrcanvas" width="1" height="1"></canvas></div>
       <div class="qrfp">Master fingerprint&ensp;<b id="qrfp">…</b></div>
-      <div class="hint">A standard SeedQR, read directly by SeedSigner, Krux, Jade and
-        Specter DIY — no typing on the device. <b>Whoever scans this owns the wallet</b>, and
-        any camera in the room can. Reveal it only for your scanner, and close it once
-        scanned. The fingerprint is not a secret: after scanning, your wallet should show the
-        same eight characters (assuming no BIP-39 passphrase) — if it differs, the wallet did
-        not read this seed.</div>
+      <div class="hint">A standard SeedQR — if your hardware wallet can scan one in, it
+        imports this seed directly, with nothing typed on the device. <b>Whoever scans this
+        owns the wallet</b>, and any camera in the room can. Reveal it only for your scanner,
+        and close it once scanned. The fingerprint is not a secret: after scanning, your
+        wallet should show the same eight characters (assuming no BIP-39 passphrase) — if it
+        differs, the wallet did not read this seed.</div>
     </div>
   </div>
 
@@ -3534,8 +3534,8 @@ $("peek").onclick = () => setPeek(!$("in").classList.toggle("shield"));
 /* ---- SeedQR ---------------------------------------------------------- */
 // The standard SeedQR encoding: each word's position in the list, zero-padded
 // to four digits, concatenated into one number. Purely positional — no
-// hashing, no versioning — which is why SeedSigner, Krux, Jade and Specter DIY
-// can all read it. Numeric QR mode, as the format specifies; byte mode would
+// hashing, no versioning — which is why any wallet with SeedQR support can
+// read it. Numeric QR mode, as the format specifies; byte mode would
 // scan the same but waste a third of the modules.
 /* ---- master fingerprint ---------------------------------------------- */
 // The BIP-32 master fingerprint: phrase -> seed (PBKDF2-SHA512, from

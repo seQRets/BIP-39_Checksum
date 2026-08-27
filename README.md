@@ -51,8 +51,9 @@ seed.
 
 A third control shows the seed as a **standard SeedQR** — each word's wordlist
 position as four digits, concatenated and encoded as a numeric-mode QR, the
-format SeedSigner, Krux, Jade and Specter DIY scan to import a seed without
-typing it on the device. The QR opens in a modal, blurred until deliberately
+format many hardware wallets — SeedSigner, Krux, Jade, Specter DIY and the
+Keystone 3 Pro, among others — scan to import a seed without typing it on the
+device. The QR opens in a modal, blurred until deliberately
 revealed (a QR is readable by any camera in the room, not just the one you
 mean), and the drawing is wiped when the modal closes. QR encoding is
 `kazuhikoarase/qrcode-generator` (MIT), embedded verbatim — the same embed the
