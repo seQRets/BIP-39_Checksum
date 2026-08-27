@@ -326,6 +326,59 @@ async function pageChecks(browser, fileUrl, httpUrl) {
       !oneBad, oneBad ? JSON.stringify(oneBad).slice(0, 140) : '');
   }
 
+  // ---------- SeedQR ----------
+  // digits: the page's encoder must agree with an independent one, and the
+  // canvas geometry proves Numeric mode — byte mode of 48 digits cannot fit
+  // version 2, so a 264px canvas is only reachable encoded as the spec says.
+  const sqDigits = ws => ws.map(w => String(IDX.get(w)).padStart(4, '0')).join('');
+  const sq = await p.evaluate(`${HELPERS}
+    const out = {};
+    out.digitsKnown = seedqrDigits([...Array(11).fill('abandon'),'about']);
+    out.digitsZoo = seedqrDigits([...Array(23).fill('zoo'),'vote']);
+    $('clr').click(); await wait(()=>$('out').style.display==='none');
+    $('genlen').value='11'; $('genfull').click();
+    if(!await wait(()=>$('in').classList.contains('shield'))) return {err:'genfull timeout'};
+    out.seed12 = $('in').value.trim();
+    $('inqr').click();
+    out.open12 = $('qrveil').style.display!=='none';
+    out.blur12 = $('qrbox').classList.contains('shield');
+    out.canvas12 = $('qrcanvas').width;
+    $('qrpeek').click(); out.reveals = !$('qrbox').classList.contains('shield');
+    $('qrclose').click();
+    out.closed = $('qrveil').style.display==='none';
+    out.wiped = $('qrcanvas').width===1;
+    $('inqr').click(); out.reblurs = $('qrbox').classList.contains('shield');
+    dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
+    out.escCloses = $('qrveil').style.display==='none';
+    $('clr').click(); await wait(()=>$('out').style.display==='none');
+    $('genlen').value='23'; $('genfull').click();
+    if(!await wait(()=>$('in').classList.contains('shield'))) return {err:'genfull 23 timeout'};
+    $('inqr').click(); out.canvas24 = $('qrcanvas').width; $('qrclose').click();
+    $('clr').click(); await wait(()=>$('out').style.display==='none');
+    $('in').value='abandon '.repeat(11).trim(); $('go').click();
+    await wait(()=>document.querySelectorAll('#grid .w').length===128);
+    document.querySelector('#grid .w').click();
+    await wait(()=>$('full').style.display==='block');
+    $('fqr').click();
+    out.manualOpen = $('qrveil').style.display!=='none';
+    out.manualBlur = $('qrbox').classList.contains('shield');
+    $('qrclose').click();
+    return out;`);
+  chk('SeedQR digits match an independent encoding', !sq.err
+      && sq.digitsKnown === sqDigits([...Array(11).fill('abandon'), 'about'])
+      && sq.digitsZoo === sqDigits([...Array(23).fill('zoo'), 'vote'])
+      && sq.digitsKnown === '0'.repeat(44) + '0003',
+    sq.err || `${String(sq.digitsKnown).slice(0, 12)}…`);
+  chk('generated seed valid and its digits are 4 per word', !sq.err
+      && validate(sq.seed12) && sqDigits(sq.seed12.split(' ')).length === 48);
+  chk('QR is Numeric mode: version 2 at 12 words, version 3 at 24',
+      !sq.err && sq.canvas12 === (25 + 8) * 8 && sq.canvas24 === (29 + 8) * 8,
+      sq.err || `${sq.canvas12}px / ${sq.canvas24}px, expected 264 / 296`);
+  chk('SeedQR modal: blurred open, reveal, wipe on close, re-blur, Esc, manual flow too',
+      !sq.err && sq.open12 && sq.blur12 && sq.reveals && sq.closed && sq.wiped
+      && sq.reblurs && sq.escCloses && sq.manualOpen && sq.manualBlur,
+      sq.err || JSON.stringify(sq).slice(0, 160));
+
   console.log('\n--- how it looks ---');
   const links = await p.evaluate(
     `return [...document.querySelectorAll('a')].map(a=>({href:a.href,target:a.target,rel:a.rel,w:a.getBoundingClientRect().width}));`);

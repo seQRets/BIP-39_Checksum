@@ -1,6 +1,8 @@
 # BIP-39 Last Word
 
-Find every valid final word for an incomplete BIP-39 seed phrase.
+Generate a complete BIP-39 seed phrase, or find every valid final word for the
+words you already have. Complete seeds can be shown as a standard SeedQR for
+wallets that scan a seed in.
 
 A single self-contained HTML file. No build step, no dependencies, no network —
 open it and it works, online or off.
@@ -39,6 +41,16 @@ same way; an eye control beside it reveals it, and a copy control copies it
 the machine. The valid endings stay listed below with the picked word marked,
 and clicking a different one swaps the ending in the box. Editing the box by
 hand dismisses the blur and its controls.
+
+A third control shows the seed as a **standard SeedQR** — each word's wordlist
+position as four digits, concatenated and encoded as a numeric-mode QR, the
+format SeedSigner, Krux, Jade and Specter DIY scan to import a seed without
+typing it on the device. The QR opens in a modal, blurred until deliberately
+revealed (a QR is readable by any camera in the room, not just the one you
+mean), and the drawing is wiped when the modal closes. QR encoding is
+`kazuhikoarase/qrcode-generator` (MIT), embedded verbatim — the same embed the
+sister project [seQRets/Passphrase](https://github.com/seQRets/Passphrase)
+uses. "QR Code" is a registered trademark of DENSO WAVE INCORPORATED.
 
 Click any candidate to assemble the full phrase, or **Pick at random** to have
 one chosen for you. That pick uses the same generator, never `Math.random` —
