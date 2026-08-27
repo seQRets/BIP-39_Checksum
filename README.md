@@ -34,13 +34,20 @@ the uniform pick among 8 endings supplies the last 3, the same 256 bits as
 before the ending, so you can watch the checksum narrow the choices and pick
 one yourself.
 
-A generated seed lands in the input box **blurred**, so it is not readable over
-your shoulder — and the phrase assembled beneath the candidate list arrives the
-same way; an eye control beside it reveals it, and a copy control copies it
-— with the usual warning that the clipboard can be read by anything running on
-the machine. The valid endings stay listed below with the picked word marked,
-and clicking a different one swaps the ending in the box. Editing the box by
-hand dismisses the blur and its controls.
+Everything happens in one seed field. Anything the generator produces —
+a complete seed or a partial one — lands in the input box **blurred**, so it is
+not readable over your shoulder; words you type yourself stay visible, and the
+blur state carries through when you complete them. An eye control reveals and
+hides, a copy control copies — with the usual warning that the clipboard can be
+read by anything running on the machine. The valid endings are listed below
+with the picked word marked; clicking a different one swaps the ending in the
+box above, and a note beneath the list says so. Editing the box by hand
+dismisses the blur and its controls. The seed's **BIP-32 master
+fingerprint** (assuming an empty passphrase) appears both under the generated
+seed in the input box and beneath the QR, unblurred —
+a fingerprint identifies a wallet but cannot open it. After the device scans,
+it should show the same eight characters; a mismatch means it read a different
+seed.
 
 A third control shows the seed as a **standard SeedQR** — each word's wordlist
 position as four digits, concatenated and encoded as a numeric-mode QR, the
@@ -162,7 +169,7 @@ Two checks before you type anything real:
 
 1. The badge near the top should read **"Offline — no route out"** in green. If
    it still says *Online*, something is still connected — go back to step 3.
-2. Press **Verify this page**. It must say **13 of 13 checks passed**. That
+2. Press **Verify this page**. It must say **14 of 14 checks passed**. That
    confirms the calculator gets the right answer on example phrases whose
    correct answers are published in the BIP-39 standard, and that its built-in
    word list has not been altered. It checks the *page* — it can tell you
@@ -207,7 +214,7 @@ phrases whose correct answers are published in the BIP-39 standard, and confirms
 this page produces each one — with the right number of options and no
 duplicates. It then hashes the built-in word list and compares it against the
 official file, and checks that a real cryptographic RNG is present. It should
-read **13 of 13 checks passed**.
+read **14 of 14 checks passed**.
 
 By default it shows three lines — the calculations, the word list, the random
 number generator — each either pass or fail. *Show all 13 checks* expands the
@@ -232,7 +239,12 @@ curl -s https://raw.githubusercontent.com/bitcoin/bips/master/bip-0039/english.t
 # 2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda
 ```
 
-Hashing uses the browser's native `crypto.subtle` — no hand-rolled SHA-256.
+Hashing uses the browser's native `crypto.subtle` — no hand-rolled SHA-256. The
+master fingerprint shown under the SeedQR needs two primitives the browser does
+not provide, secp256k1 and RIPEMD-160; both are implemented in the file — the
+one place it rolls its own — and **Verify this page** holds them to the
+published test vectors, including BIP-32 test vector 1 and the all-zeros
+mnemonic's well-known fingerprint `73c5da0a`.
 
 ## The entropy meter
 

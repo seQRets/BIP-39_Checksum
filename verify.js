@@ -216,7 +216,7 @@ async function pageChecks(browser, fileUrl, httpUrl) {
       await wait(()=>$('testsum')&&$('testsum').textContent.trim());
       const el=$('testsum');
       return el ? el.textContent.trim() : 'never finished — the page threw before reporting';`);
-    chk(`its own verification reads 13 of 13, ${label}`, st === '✓ All 13 checks passed', st);
+    chk(`its own verification reads 14 of 14, ${label}`, st === '✓ All 14 checks passed', st);
     const off = p.requests.filter(u => !u.startsWith(url.replace(/\/$/, '')) && !u.startsWith(url));
     chk(`nothing is fetched from anywhere, ${label}`, off.length === 0, off.join(','));
     chk(`no script errors, ${label}`, p.exceptions.length === 0, p.exceptions.join(' | '));
@@ -247,9 +247,9 @@ async function pageChecks(browser, fileUrl, httpUrl) {
           && $('st').textContent.startsWith('✓'))) return {err:'timed out at '+o.value+' words'};
         const input=$('in').value.trim();
         $('rand').click();
-        if(!await wait(()=>$('full').style.display==='block')) return {err:'pick at random timed out'};
-        const full=$('full').textContent.trim().replace(/\\s+/g,' ');
-        if(!full.startsWith(input+' ')) return {err:'built phrase does not start with the words supplied'};
+        if(!await wait(()=>$('in').value.trim().split(/\\s+/).length===+o.value+1)) return {err:'pick at random timed out'};
+        const full=$('in').value.trim().replace(/\\s+/g,' ');
+        if(!full.startsWith(input+' ')) return {err:'completed seed does not start with the words supplied'};
         out.push(full);
       }
     } return {out};`);
@@ -258,28 +258,41 @@ async function pageChecks(browser, fileUrl, httpUrl) {
   // hides the whole line including the highlighted last word, copy warns
   const manual = await p.evaluate(`${HELPERS}
     $('clr').click(); await wait(()=>$('out').style.display==='none');
-    $('genlen').value='11'; $('gen').click();
+    $('in').value='abandon '.repeat(11).trim(); $('go').click();
     if(!await wait(()=>$('out').style.display==='block'
       && document.querySelectorAll('#grid .w').length===128)) return {err:'grid timeout'};
     document.querySelector('#grid .w').click();
-    if(!await wait(()=>$('full').style.display==='block')) return {err:'full timeout'};
-    const r={ ctl: $('fullctl').style.display!=='none',
-              blurredFirst: $('full').classList.contains('shield'),
-              lastWordHidden: getComputedStyle(document.querySelector('#full .n')).color==='rgba(0, 0, 0, 0)',
-              warnNotYet: $('cliphint').style.display==='none' };
-    $('fpeek').click(); r.reveals = !$('full').classList.contains('shield');
-    // choosing another ending keeps the user's choice rather than re-hiding
+    if(!await wait(()=>$('in').value.trim().split(/\\s+/).length===12)) return {err:'completion timeout'};
+    const r={ ctl: $('inctl').style.display!=='none',
+              typedStaysVisible: !$('in').classList.contains('shield'),
+              qrAvailable: $('inqr').style.display!=='none',
+              noteBelow: /box at the top/.test($('randnote').textContent),
+              warnNotYet: !/clipboard/i.test($('inhint').textContent) };
+    $('peek').click(); r.hides = $('in').classList.contains('shield');
     document.querySelectorAll('#grid .w')[1].click();
-    r.staysRevealed = !$('full').classList.contains('shield');
-    $('fpeek').click(); r.rehides = $('full').classList.contains('shield');
-    $('fcopy').click(); r.warnAfterCopy = $('cliphint').style.display==='block';
-    r.noOldButton = !document.getElementById('copyfull');
+    r.staysHidden = $('in').classList.contains('shield');
+    $('peek').click(); r.showsAgain = !$('in').classList.contains('shield');
+    $('incopy').click(); r.warnAfterCopy = /clipboard/i.test($('inhint').textContent);
+    r.noLowerBox = !document.getElementById('full');
     return r;`);
-  chk('assembled phrase arrives blurred; eye reveals and survives re-choosing',
-    !manual.err && manual.ctl && manual.blurredFirst && manual.lastWordHidden
-      && manual.warnNotYet && manual.reveals && manual.staysRevealed
-      && manual.rehides && manual.warnAfterCopy && manual.noOldButton,
+  chk('typed words complete into the one box, visible, with QR and note below',
+    !manual.err && manual.ctl && manual.typedStaysVisible && manual.qrAvailable
+      && manual.noteBelow && manual.warnNotYet && manual.hides && manual.staysHidden
+      && manual.showsAgain && manual.warnAfterCopy && manual.noLowerBox,
     manual.err || JSON.stringify(manual));
+  // partial generation is born hidden, like everything the generator makes
+  const partial = await p.evaluate(`${HELPERS}
+    $('clr').click(); await wait(()=>$('out').style.display==='none');
+    $('genlen').value='11'; $('gen').click();
+    if(!await wait(()=>$('out').style.display==='block'
+      && document.querySelectorAll('#grid .w').length===128)) return {err:'partial timeout'};
+    return { blurred: $('in').classList.contains('shield'),
+             ctl: $('inctl').style.display!=='none',
+             qrHidden: $('inqr').style.display==='none',
+             guided: /choose the ending/i.test($('inhint').textContent) };`);
+  chk('a generated partial seed arrives blurred, QR withheld until complete',
+    !partial.err && partial.blurred && partial.ctl && partial.qrHidden && partial.guided,
+    partial.err || JSON.stringify(partial));
   if (gen.out) {
     const bad = gen.out.filter(x => !validate(x));
     chk(`all ${gen.out.length} generated phrases are valid BIP-39 (checked independently)`,
@@ -298,15 +311,13 @@ async function pageChecks(browser, fileUrl, httpUrl) {
         && $('inctl').style.display!=='none')) return {err:'timed out at '+o.value};
       const rec={ phrase: $('in').value.trim(),
                   blurred: $('in').classList.contains('shield'),
-                  note: $('inhint').textContent,
-                  lowerBlockHidden: $('full').style.display!=='block' };
+                  note: $('inhint').textContent };
       // the eye reveals, and reveals only when pressed
       $('peek').click(); rec.unblurs = !$('in').classList.contains('shield');
       $('peek').click(); rec.reblurs = $('in').classList.contains('shield');
       // choosing a different ending updates the box, not the block below
       const other=[...document.querySelectorAll('#grid .w')].find(w=>!w.classList.contains('sel'));
       other.click(); rec.rechoose = $('in').value.trim();
-      rec.stillNoLowerBlock = $('full').style.display!=='block';
       // copying surfaces the clipboard warning
       $('incopy').click(); rec.copyWarn = /clipboard/i.test($('inhint').textContent);
       out.push(rec);
@@ -320,9 +331,8 @@ async function pageChecks(browser, fileUrl, httpUrl) {
       one.out.every(x => validate(x.rechoose) && x.rechoose !== x.phrase),
       one.out.filter(x => !validate(x.rechoose)).map(x => x.rechoose).slice(0, 1).join(''));
     const oneBad = one.out.find(x => !x.blurred || !x.unblurs || !x.reblurs
-      || !/came from your browser/.test(x.note) || !x.copyWarn
-      || !x.lowerBlockHidden || !x.stillNoLowerBlock);
-    chk('blur, eye toggle, copy warning and no duplicate block below',
+      || !/came from your browser/.test(x.note) || !x.copyWarn);
+    chk('blur, eye toggle and copy warning on the one-press seed',
       !oneBad, oneBad ? JSON.stringify(oneBad).slice(0, 140) : '');
   }
 
@@ -358,8 +368,8 @@ async function pageChecks(browser, fileUrl, httpUrl) {
     $('in').value='abandon '.repeat(11).trim(); $('go').click();
     await wait(()=>document.querySelectorAll('#grid .w').length===128);
     document.querySelector('#grid .w').click();
-    await wait(()=>$('full').style.display==='block');
-    $('fqr').click();
+    await wait(()=>$('inqr').style.display!=='none');
+    $('inqr').click();
     out.manualOpen = $('qrveil').style.display!=='none';
     out.manualBlur = $('qrbox').classList.contains('shield');
     $('qrclose').click();
@@ -378,6 +388,88 @@ async function pageChecks(browser, fileUrl, httpUrl) {
       !sq.err && sq.open12 && sq.blur12 && sq.reveals && sq.closed && sq.wiped
       && sq.reblurs && sq.escCloses && sq.manualOpen && sq.manualBlur,
       sq.err || JSON.stringify(sq).slice(0, 160));
+
+  // ---------- master fingerprint ----------
+  // fully independent chain: Node's PBKDF2, HMAC, secp256k1 (via ECDH) and
+  // RIPEMD-160 against the page's in-file implementations, plus the published
+  // anchor for the all-zeros mnemonic.
+  const nodeFp = mnemonic => {
+    const seed = crypto.pbkdf2Sync(mnemonic, 'mnemonic', 2048, 64, 'sha512');
+    const I = crypto.createHmac('sha512', 'Bitcoin seed').update(seed).digest();
+    const e = crypto.createECDH('secp256k1'); e.setPrivateKey(I.slice(0, 32));
+    const sha = crypto.createHash('sha256').update(e.getPublicKey(null, 'compressed')).digest();
+    return crypto.createHash('ripemd160').update(sha).digest().slice(0, 4).toString('hex');
+  };
+  const fpr = await p.evaluate(`${HELPERS}
+    const out = {};
+    out.anchor = await masterFingerprint([...Array(11).fill('abandon'),'about']);
+    // the fingerprint shown for a real generated seed
+    $('clr').click(); await wait(()=>$('out').style.display==='none');
+    $('genlen').value='11'; $('genfull').click();
+    if(!await wait(()=>$('in').classList.contains('shield'))) return {err:'genfull timeout'};
+    out.seed = $('in').value.trim();
+    // the in-box line, no modal needed
+    if(!await wait(()=>/^[0-9a-f]{8}$/.test($('infpv').textContent), 8000)) return {err:'box fingerprint never shown'};
+    out.boxFp = $('infpv').textContent;
+    // re-choosing the ending must change the phrase and refresh the fingerprint
+    const other=[...document.querySelectorAll('#grid .w')].find(w=>!w.classList.contains('sel'));
+    other.click();
+    out.seed2 = $('in').value.trim();
+    if(!await wait(()=>/^[0-9a-f]{8}$/.test($('infpv').textContent)
+        && $('infpv').textContent!==out.boxFp, 8000)) return {err:'box fingerprint did not refresh'};
+    out.boxFp2 = $('infpv').textContent;
+    $('inqr').click();
+    if(!await wait(()=>/^[0-9a-f]{8}$/.test($('qrfp').textContent), 8000)) return {err:'fingerprint never shown'};
+    out.shown = $('qrfp').textContent;
+    out.modalAgrees = out.shown === out.boxFp2;
+    out.unblurred = !$('qrfp').closest('.qrbox');
+    $('qrclose').click();
+    out.cleared = $('qrfp').textContent==='…';
+    // the reserved right padding must cover the control strip in both boxes,
+    // or a long first line runs underneath the icons
+    const covers = (area, ctl) => {
+      const a=area.getBoundingClientRect(), c=ctl.getBoundingClientRect();
+      return parseFloat(getComputedStyle(area).paddingRight) >= (a.right - c.left) - 1;
+    };
+    out.padOk = covers($('in'), $('inctl'));
+    out.padWhy = 'input covered: '+out.padOk;
+    // editing by hand dismisses the line with the rest of the generated state
+    $('clr').click(); await wait(()=>$('out').style.display==='none');
+    $('genlen').value='11'; $('genfull').click();
+    if(!await wait(()=>$('in').classList.contains('shield'))) return {err:'genfull re-run timeout'};
+    $('in').dispatchEvent(new Event('input'));
+    out.goneOnEdit = $('infp').style.display==='none';
+    return out;`);
+  chk('master fingerprint anchor is 73c5da0a and Node agrees', !fpr.err
+      && fpr.anchor === '73c5da0a' && nodeFp('abandon '.repeat(11) + 'about') === '73c5da0a',
+    fpr.err || fpr.anchor);
+  chk('fingerprint shown for a generated seed matches Node independently',
+      !fpr.err && fpr.boxFp === nodeFp(fpr.seed),
+      fpr.err || `page ${fpr.boxFp}, node ${!fpr.err && nodeFp(fpr.seed)}`);
+  chk('text cannot run under the control icons', !fpr.err && fpr.padOk, fpr.err || fpr.padWhy);
+  const creep = await p.evaluate(`${HELPERS}
+    $('clr').click(); await wait(()=>$('out').style.display==='none');
+    const settle = async () => { let y=-1;
+      for(let i=0;i<40;i++){ await new Promise(r=>setTimeout(r,100));
+        if(Math.abs(scrollY-y)<1) return scrollY; y=scrollY; } return scrollY; };
+    const ys=[];
+    for (const start of [0, 400]) {
+      scrollTo(0, start); await new Promise(r=>setTimeout(r,100));
+      for (let i=0;i<2;i++){
+        $('genlen').value='11'; $('genfull').click();
+        if(!await wait(()=>$('in').classList.contains('shield'))) return {err:'timeout'};
+        ys.push({ start, ended: await settle() });
+      }
+    }
+    return {ys};`);
+  chk('generating never scrolls the page, from the top or mid-page',
+      !creep.err && creep.ys.every(y => Math.abs(y.ended - y.start) < 3),
+      creep.err || JSON.stringify(creep.ys));
+  chk('in-box fingerprint refreshes on re-choosing and the modal agrees',
+      !fpr.err && fpr.boxFp2 === nodeFp(fpr.seed2) && fpr.modalAgrees && fpr.goneOnEdit,
+      fpr.err || `box ${fpr.boxFp2}, node ${!fpr.err && nodeFp(fpr.seed2)}, modal agrees ${fpr.modalAgrees}`);
+  chk('fingerprint sits outside the blur and clears on close',
+      !fpr.err && fpr.unblurred && fpr.cleared, fpr.err || JSON.stringify(fpr).slice(0, 100));
 
   console.log('\n--- how it looks ---');
   const links = await p.evaluate(

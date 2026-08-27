@@ -92,7 +92,9 @@
   .card.hot{border-color:rgba(247,147,26,0.55);background:rgba(247,147,26,0.06)}
   .h{font-size:.72rem;font-weight:700;letter-spacing:.22em;color:var(--dim);
      text-transform:uppercase;margin-bottom:1.1rem}
-  .cardhead{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+  .cardhead{display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem 1rem;
+    flex-wrap:wrap}
+  .cardhead #rand{flex:none;margin-top:-.35rem;margin-bottom:1.1rem}
   button.x{flex:none;margin-top:-.4rem;padding:.1rem .5rem .25rem;font-size:1.25rem;
     line-height:1;font-weight:400;letter-spacing:0;text-transform:none;
     border-color:transparent;background:transparent;color:var(--dim)}
@@ -119,7 +121,15 @@
      The eye button lifts it. */
   textarea.shield{color:transparent;text-shadow:0 0 .55em var(--muted);caret-color:transparent}
   .inwrap{position:relative}
-  .inwrap.on textarea{padding-right:5.2rem}
+  .inwrap.on textarea{padding-right:7.9rem}
+  /* the fingerprint rides inside the box, pinned under the words. Unblurred on
+     purpose: it identifies the wallet but cannot open it. */
+  .inwrap.fp textarea{padding-bottom:2.2rem}
+  .infp{position:absolute;left:1.1rem;bottom:.7rem;pointer-events:none;
+    font-size:.68rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--dim)}
+  .infp b{font:700 .9rem var(--mono);letter-spacing:.06em;color:var(--code-ink);
+    text-transform:none;vertical-align:-.05em}
   .inctl{position:absolute;top:.6rem;right:.8rem;display:flex;gap:.35rem}
   .ictl{padding:.4rem;border-radius:7px;line-height:0;cursor:pointer;
     border:1px solid var(--line);background:var(--panel);color:var(--muted)}
@@ -182,10 +192,6 @@
   .w.sel{background:rgba(247,147,26,.14);border-color:var(--orange);color:var(--accent-ink)}
   .w .i{font-size:11px;color:var(--dim);letter-spacing:.04em}
   .w.sel .i{color:var(--accent-ink);opacity:.7}
-  .full{margin-top:1.1rem;padding:1.1rem 1.2rem;border:1px dashed rgba(247,147,26,.4);
-    border-radius:12px;background:rgba(247,147,26,.05);font:14px/2 var(--mono);
-    word-spacing:.35em;color:var(--ink)}
-  .full .n{color:var(--accent-ink);font-weight:700}
   /* ---- SeedQR modal ---- */
   .qrveil{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.65);
     display:flex;align-items:center;justify-content:center;padding:1.2rem}
@@ -202,11 +208,12 @@
      smudged until the eye says otherwise, and the reveal is never sticky. */
   .qrbox.shield canvas{filter:blur(14px)}
   .qrtools{display:flex;gap:.35rem;align-items:center}
-  .fullwrap{position:relative}
-  .fullwrap.on .full{padding-right:5.2rem}
-  .fullctl{position:absolute;top:.65rem;right:.7rem;display:flex;gap:.35rem}
-  /* placed after .full .n so the hide covers the highlighted last word too */
-  .full.shield,.full.shield .n{color:transparent;text-shadow:0 0 .55em var(--muted)}
+  /* deliberately outside .qrbox, so the blur never covers it — a fingerprint
+     identifies the wallet but cannot open it */
+  .qrfp{margin-top:.9rem;font-size:.72rem;font-weight:700;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--dim)}
+  .qrfp b{font:700 .95rem var(--mono);letter-spacing:.06em;color:var(--code-ink);
+    text-transform:none;vertical-align:-.05em}
 
   /* ---- tables ---- */
   .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -315,7 +322,7 @@
        paired label on a single line. */
     .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));
          gap:.55rem;align-items:stretch}
-    .row .primary,.row select,#test,#gen,#genfull,#rand{grid-column:1 / -1}
+    .row .primary,.row select,#test,#gen,#genfull{grid-column:1 / -1}
     .row button,.row select{width:100%;padding-left:.6rem;padding-right:.6rem;
                             letter-spacing:.06em}
   }
@@ -393,7 +400,7 @@
         <li>Turn off Wi-Fi and unplug any network cable.</li>
         <li>Open a private window in that profile and drag the saved file onto it.</li>
         <li>Check the badge below reads <b>Offline — no route out</b>, then press
-            <b>Verify this page</b> and confirm it says <b>13 of 13 checks passed</b>.
+            <b>Verify this page</b> and confirm it says <b>14 of 14 checks passed</b>.
             That makes the page work out answers already published in the BIP-39 standard
             and take a fingerprint of its own built-in word list — an altered copy gets
             them wrong. It needs no connection, and it checks the page, not your
@@ -426,6 +433,7 @@
           <path d="M14 14h3v3h-3z"/><path d="M21 14v1M14 21h1M21 20v1h-1"/>
         </svg></button>
     </div>
+    <div class="infp" id="infp" style="display:none">Master fingerprint&ensp;<b id="infpv">…</b></div>
     </div>
     <div class="hint" id="inhint" style="display:none"></div>
     <div class="row">
@@ -469,34 +477,11 @@
   </div>
 
   <div class="card" id="out" style="display:none">
-    <div class="h on" id="outlbl"></div>
-    <div class="grid" id="grid"></div>
-    <div class="fullwrap" id="fullwrap">
-    <div class="full" id="full" style="display:none"></div>
-    <div class="fullctl" id="fullctl" style="display:none">
-      <button class="ictl" id="fpeek" type="button" aria-label="Show the phrase" aria-pressed="false">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>
-          <line id="fpeekslash" x1="4" y1="21" x2="20" y2="3" style="display:none"/>
-        </svg></button>
-      <button class="ictl" id="fcopy" type="button" aria-label="Copy the phrase">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-        </svg></button>
-      <button class="ictl" id="fqr" type="button" aria-label="Show as a SeedQR">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
-          <path d="M14 14h3v3h-3z"/><path d="M21 14v1M14 21h1M21 20v1h-1"/>
-        </svg></button>
-    </div>
-    </div>
-    <div class="row">
+    <div class="cardhead">
+      <div class="h on" id="outlbl"></div>
       <button id="rand">Pick at random</button>
     </div>
-    <div class="hint" id="cliphint" style="display:none">⚠︎ Copying a full phrase puts it on
-      your clipboard, where any program running on your computer can read it. Apps that keep a
-      clipboard history save their own copy, and a Mac will pass it to your iPhone and iPad.
-      Write it out by hand instead if it holds real money.</div>
+    <div class="grid" id="grid"></div>
     <div class="hint" id="randnote" style="display:none"></div>
   </div>
 
@@ -659,10 +644,13 @@
         </div>
       </div>
       <div class="qrbox" id="qrbox"><canvas id="qrcanvas" width="1" height="1"></canvas></div>
+      <div class="qrfp">Master fingerprint&ensp;<b id="qrfp">…</b></div>
       <div class="hint">A standard SeedQR, read directly by SeedSigner, Krux, Jade and
         Specter DIY — no typing on the device. <b>Whoever scans this owns the wallet</b>, and
         any camera in the room can. Reveal it only for your scanner, and close it once
-        scanned.</div>
+        scanned. The fingerprint is not a secret: after scanning, your wallet should show the
+        same eight characters (assuming no BIP-39 passphrase) — if it differs, the wallet did
+        not read this seed.</div>
     </div>
   </div>
 
@@ -3046,30 +3034,43 @@ let current = [], prefix = [];
 // where the assembled phrase is shown beneath the grid instead.
 let whole = false;
 
+function setPeek(visible) {
+  $("peek").setAttribute("aria-pressed", String(visible));
+  $("peek").setAttribute("aria-label", visible ? "Hide the seed" : "Show the seed");
+  $("peekslash").style.display = visible ? "block" : "none";
+}
 function shieldOn() {
   $("in").classList.add("shield");
   $("inwrap").classList.add("on");
   $("inctl").style.display = "flex";
-  $("peek").setAttribute("aria-pressed", "false");
-  $("peek").setAttribute("aria-label", "Show the seed");
-  $("peekslash").style.display = "none";
+  setPeek(false);
 }
 function shieldReset() {
   whole = false;
   $("in").classList.remove("shield");
-  $("inwrap").classList.remove("on");
+  $("inwrap").classList.remove("on", "fp");
   $("inctl").style.display = "none";
   $("inhint").style.display = "none";
+  $("infp").style.display = "none";
+}
+// The fingerprint under the words, for anyone who never opens the QR. It is
+// recomputed whenever the ending changes, since the ending changes it.
+let infpCount = 0;
+function showBoxFingerprint() {
+  const words = $("in").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const token = ++infpCount;
+  $("infp").style.display = "block";
+  $("inwrap").classList.add("fp");
+  $("infpv").textContent = "…";
+  masterFingerprint(words).then(fp => {
+    if (token === infpCount && $("infp").style.display !== "none")
+      $("infpv").textContent = fp || "unavailable";
+  });
 }
 
-async function calculate() {
+async function calculate(reveal = true) {
   shieldReset();
   const { words, err } = parse($("in").value);
-  $("full").style.display = "none";
-  $("full").classList.remove("shield");
-  $("fullctl").style.display = "none";
-  $("fullwrap").classList.remove("on");
-  $("cliphint").style.display = "none";
   $("randnote").style.display = "none";
   updateMeter();
   if (err) {
@@ -3087,7 +3088,13 @@ async function calculate() {
   const cfg = CFG[words.length];
   $("st").className = "status ok";
   $("st").textContent = `✓  ${current.length} words complete your ${cfg.n}-word phrase.`;
-  $("outlbl").textContent = `Word ${cfg.n} · ${current.length} valid endings · click to build the phrase`;
+  $("outlbl").textContent = `Word ${cfg.n} · ${current.length} valid endings · click one to complete the seed above`;
+  // the box gets its eye and copy as soon as it holds a working phrase; the QR
+  // and the fingerprint wait until the phrase is complete
+  $("inctl").style.display = "flex";
+  $("inwrap").classList.add("on");
+  $("inqr").style.display = "none";
+  setPeek(!$("in").classList.contains("shield"));
   $("grid").innerHTML = "";
   current.forEach(w => {
     const el = document.createElement("div");
@@ -3098,31 +3105,21 @@ async function calculate() {
     el.onclick = () => {
       document.querySelectorAll(".w.sel").forEach(x => x.classList.remove("sel"));
       el.classList.add("sel");
-      if (whole) {
-        // the seed lives in the box above; choosing an ending updates it there
-        $("in").value = [...prefix, w].join(" ");
-        updateMeter();
-        return;
-      }
-      $("full").innerHTML = "";
-      prefix.forEach(p => $("full").append(document.createTextNode(p + " ")));
-      const last = document.createElement("span"); last.className = "n"; last.textContent = w;
-      $("full").append(last);
-      $("full").style.display = "block";
-      if ($("fullctl").style.display === "none") {
-        // first assembly since this calculation: hidden until the eye says otherwise
-        $("full").classList.add("shield");
-        $("fpeek").setAttribute("aria-pressed", "false");
-        $("fpeek").setAttribute("aria-label", "Show the phrase");
-        $("fpeekslash").style.display = "none";
-      }
-      $("fullctl").style.display = "flex";
-      $("fullwrap").classList.add("on");
+      // one seed field: choosing an ending completes the phrase in the box at
+      // the top, whichever way the first words got there. The blur carries
+      // over — generated words stay hidden, typed words stay visible.
+      $("in").value = [...prefix, w].join(" ");
+      updateMeter();
+      showBoxFingerprint();
+      $("inqr").style.display = "";
+      $("randnote").style.display = "block";
+      $("randnote").textContent = `“${w}” is word ${CFG[prefix.length].n} — the completed seed, `
+        + `its fingerprint, its QR and the copy control are all in the box at the top.`;
     };
     $("grid").appendChild(el);
   });
   $("out").style.display = "block";
-  revealResults();
+  if (reveal) revealResults();
   return true;
 }
 
@@ -3227,6 +3224,30 @@ async function selfTest() {
 
   detail.push(`<tr class="grp"><td colspan="3">Has this page been tampered with?</td></tr>`);
 
+  // The fingerprint chain includes the two primitives this file implements
+  // itself, so it is held to published vectors: RIPEMD-160's own test strings,
+  // the secp256k1 generator point, BIP-32 test vector 1, and the standard's
+  // all-zeros mnemonic, whose fingerprint 73c5da0a appears in wallet test
+  // suites everywhere.
+  let fpOk = false, fpResult = "";
+  try {
+    const enc = new TextEncoder();
+    const hx = s => Uint8Array.from(s.match(/../g).map(b => parseInt(b, 16)));
+    const ripOk =
+      hexOf(ripemd160(new Uint8Array(0))) === "9c1185a5c5e9fc54612808977ee8f548b2258d31" &&
+      hexOf(ripemd160(enc.encode("abc"))) === "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc";
+    const ecOk = hexOf(secpPub(1n)) ===
+      "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+    const v32 = await fingerprintOfSeed(hx("000102030405060708090a0b0c0d0e0f"));
+    const v39 = await masterFingerprint([...Array(11).fill("abandon"), "about"]);
+    fpOk = ripOk && ecOk && v32 === "3442193e" && v39 === "73c5da0a";
+    fpResult = fpOk ? "matches the published BIP-32 and RIPEMD-160 test vectors"
+                    : "WRONG — do not trust the fingerprint shown under the QR";
+  } catch (e) { fpOk = false; fpResult = "failed — " + e.message }
+  detail.push(row("The master fingerprint derivation",
+    "the two primitives this file implements itself, held to published vectors",
+    fpResult, fpOk));
+
   const listHash = await sha256Text(WORDS.join("\n") + "\n");
   const listOk = listHash === WORDLIST_SHA256;
   const listResult = listOk ? `unchanged — SHA-256 ${listHash.slice(0, 10)}…`
@@ -3244,8 +3265,8 @@ async function selfTest() {
   detail.push(row("Your browser’s random number generator",
     "the generate and “Pick at random” buttons depend on it", rngResult, rngOk));
 
-  const ok = calcOk + (genOk ? 1 : 0) + (listOk ? 1 : 0) + (rngOk ? 1 : 0);
-  const TOTAL = CALC_TOTAL + 3;
+  const ok = calcOk + (genOk ? 1 : 0) + (fpOk ? 1 : 0) + (listOk ? 1 : 0) + (rngOk ? 1 : 0);
+  const TOTAL = CALC_TOTAL + 4;
   const all = ok === TOTAL;
 
   // --- the three lines almost everyone actually wants -----------------------
@@ -3257,6 +3278,8 @@ async function selfTest() {
         calcOk === CALC_TOTAL),
     row("Phrases it generates for you",
         "drawn at random, then checked against the calculation above", genResult, genOk),
+    row("The master fingerprint derivation",
+        "held to published BIP-32 and RIPEMD-160 test vectors", fpResult, fpOk),
     row("The built-in word list",
         "must be the official BIP-39 English list", listResult, listOk),
     row("Your browser’s random number generator",
@@ -3470,12 +3493,12 @@ function pickAtRandom() {
     return;
   }
   chips[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
-  $("randnote").style.display = "block";
   $("randnote").textContent =
     `Picked “${current[i]}” with your browser’s random number generator, the one built for `
     + `security work. Letting it choose the ending is worth ${tail} yes-or-no answers of `
     + `randomness — all the rest has to come from the ${prefix.length} words you supplied, so `
-    + `those need to have been chosen at random too.`;
+    + `those need to have been chosen at random too. The completed seed is in the box at `
+    + `the top.`;
 }
 $("rand").onclick = () => pickAtRandom();
 
@@ -3493,8 +3516,10 @@ $("genfull").onclick = async () => {
     $("st").textContent = "✕  " + e.message + " — do not use this page to generate a phrase.";
     return;
   }
-  // calculate() has already said why if it could not finish
-  if (!await calculate()) return;
+  // calculate() has already said why if it could not finish. No scrolling in
+  // this flow at all — everything the user needs appears where they already
+  // are, and the status line says the endings are listed below.
+  if (!await calculate(false)) return;
   whole = true;
   pickAtRandom();
   const cfg = CFG[prefix.length];
@@ -3502,23 +3527,126 @@ $("genfull").onclick = async () => {
     + `picked from the ${current.length} valid endings below.`;
   // it arrives hidden; the eye reveals it
   shieldOn();
-  // a nudge, not a journey: enough scroll to show the endings exist
-  scrollBy({ top: 170, behavior: "smooth" });
 };
 
 /* ---- the in-box controls ------------------------------------------- */
-$("peek").onclick = () => {
-  const hidden = $("in").classList.toggle("shield");
-  $("peek").setAttribute("aria-pressed", String(!hidden));
-  $("peek").setAttribute("aria-label", hidden ? "Show the seed" : "Hide the seed");
-  $("peekslash").style.display = hidden ? "none" : "block";
-};
+$("peek").onclick = () => setPeek(!$("in").classList.toggle("shield"));
 /* ---- SeedQR ---------------------------------------------------------- */
 // The standard SeedQR encoding: each word's position in the list, zero-padded
 // to four digits, concatenated into one number. Purely positional — no
 // hashing, no versioning — which is why SeedSigner, Krux, Jade and Specter DIY
 // can all read it. Numeric QR mode, as the format specifies; byte mode would
 // scan the same but waste a third of the modules.
+/* ---- master fingerprint ---------------------------------------------- */
+// The BIP-32 master fingerprint: phrase -> seed (PBKDF2-SHA512, from
+// crypto.subtle) -> master key (HMAC-SHA512, from crypto.subtle) -> compressed
+// public key -> first four bytes of RIPEMD160(SHA256(pubkey)). The last two
+// steps need secp256k1 and RIPEMD-160, which no browser API provides, so both
+// are implemented here — the one place this file rolls its own primitives.
+// Display only: nothing is signed and no key leaves this function. "Verify
+// this page" holds them to the published test vectors.
+const hexOf = b => [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+
+function ripemd160(msg) {
+  const rotl = (x, n) => ((x << n) | (x >>> (32 - n))) >>> 0;
+  const f = (j, x, y, z) =>
+    j < 16 ? x ^ y ^ z : j < 32 ? (x & y) | (~x & z) : j < 48 ? (x | ~y) ^ z
+    : j < 64 ? (x & z) | (y & ~z) : x ^ (y | ~z);
+  const K1 = [0, 0x5a827999, 0x6ed9eba1, 0x8f1bbcdc, 0xa953fd4e];
+  const K2 = [0x50a28be6, 0x5c4dd124, 0x6d703ef3, 0x7a6d76e9, 0];
+  const R1 = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,7,4,13,1,10,6,15,3,12,0,9,5,2,14,11,8,3,10,14,4,9,15,8,1,2,7,0,6,13,11,5,12,1,9,11,10,0,8,12,4,13,3,7,15,14,5,6,2,4,0,5,9,7,12,2,10,14,1,3,8,11,6,15,13];
+  const R2 = [5,14,7,0,9,2,11,4,13,6,15,8,1,10,3,12,6,11,3,7,0,13,5,10,14,15,8,12,4,9,1,2,15,5,1,3,7,14,6,9,11,8,12,2,10,0,4,13,8,6,4,1,3,11,15,0,5,12,2,13,9,7,10,14,12,15,10,4,1,5,8,7,6,2,13,14,0,3,9,11];
+  const S1 = [11,14,15,12,5,8,7,9,11,13,14,15,6,7,9,8,7,6,8,13,11,9,7,15,7,12,15,9,11,7,13,12,11,13,6,7,14,9,13,15,14,8,13,6,5,12,7,5,11,12,14,15,14,15,9,8,9,14,5,6,8,6,5,12,9,15,5,11,6,8,13,12,5,12,13,14,11,8,5,6];
+  const S2 = [8,9,9,11,13,15,15,5,7,7,8,11,14,14,12,6,9,13,15,7,12,8,9,11,7,7,12,7,6,15,13,11,9,7,15,11,8,6,6,14,12,13,5,14,13,13,7,5,15,5,8,11,14,14,6,14,6,9,12,9,12,5,15,8,8,5,12,9,12,5,14,6,8,13,6,5,15,13,11,11];
+  const len = msg.length, total = ((len + 9 + 63) >> 6) << 6;
+  const m = new Uint8Array(total); m.set(msg); m[len] = 0x80;
+  const bits = len * 8;
+  for (let i = 0; i < 8; i++)
+    m[total - 8 + i] = (i < 4 ? bits >>> (8 * i) : Math.floor(bits / 4294967296) >>> (8 * (i - 4))) & 0xff;
+  let h0 = 0x67452301, h1 = 0xefcdab89, h2 = 0x98badcfe, h3 = 0x10325476, h4 = 0xc3d2e1f0;
+  const X = new Uint32Array(16);
+  for (let off = 0; off < total; off += 64) {
+    for (let i = 0; i < 16; i++)
+      X[i] = m[off+4*i] | m[off+4*i+1] << 8 | m[off+4*i+2] << 16 | m[off+4*i+3] << 24;
+    let a = h0, b = h1, c = h2, d = h3, e = h4;
+    let A = h0, B = h1, C = h2, D = h3, E = h4;
+    for (let j = 0; j < 80; j++) {
+      let t = (rotl((a + f(j, b, c, d) + X[R1[j]] + K1[j >> 4]) >>> 0, S1[j]) + e) >>> 0;
+      a = e; e = d; d = rotl(c, 10); c = b; b = t;
+      t = (rotl((A + f(79 - j, B, C, D) + X[R2[j]] + K2[j >> 4]) >>> 0, S2[j]) + E) >>> 0;
+      A = E; E = D; D = rotl(C, 10); C = B; B = t;
+    }
+    const t = (h1 + c + D) >>> 0;
+    h1 = (h2 + d + E) >>> 0; h2 = (h3 + e + A) >>> 0;
+    h3 = (h4 + a + B) >>> 0; h4 = (h0 + b + C) >>> 0; h0 = t;
+  }
+  const out = new Uint8Array(20);
+  [h0, h1, h2, h3, h4].forEach((h, i) => {
+    out[4*i] = h & 255; out[4*i+1] = (h >>> 8) & 255;
+    out[4*i+2] = (h >>> 16) & 255; out[4*i+3] = (h >>> 24) & 255;
+  });
+  return out;
+}
+
+// secp256k1 compressed public key, affine double-and-add with BigInt.
+const SECP_P = 2n ** 256n - 2n ** 32n - 977n;
+const SECP_N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+const SECP_G = [0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798n,
+                0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8n];
+function secpMod(a) { const r = a % SECP_P; return r < 0n ? r + SECP_P : r; }
+function secpInv(a) {
+  let [t, nt, r, nr] = [0n, 1n, SECP_P, secpMod(a)];
+  while (nr !== 0n) { const q = r / nr; [t, nt] = [nt, t - q * nt]; [r, nr] = [nr, r - q * nr]; }
+  return secpMod(t);
+}
+function secpAdd(P, Q) {
+  if (!P) return Q; if (!Q) return P;
+  const [px, py] = P, [qx, qy] = Q;
+  if (px === qx) {
+    if (secpMod(py + qy) === 0n) return null;                    // inverse points
+    const s = secpMod(3n * px * px * secpInv(2n * py));          // doubling
+    const x = secpMod(s * s - 2n * px);
+    return [x, secpMod(s * (px - x) - py)];
+  }
+  const s = secpMod((qy - py) * secpInv(qx - px));
+  const x = secpMod(s * s - px - qx);
+  return [x, secpMod(s * (px - x) - py)];
+}
+function secpPub(priv) {
+  if (priv <= 0n || priv >= SECP_N) return null;                 // invalid key (P < 2^-127)
+  let R = null, A = SECP_G;
+  for (let k = priv; k > 0n; k >>= 1n) {
+    if (k & 1n) R = secpAdd(R, A);
+    A = secpAdd(A, A);
+  }
+  const out = new Uint8Array(33);
+  out[0] = R[1] & 1n ? 3 : 2;
+  let x = R[0];
+  for (let i = 32; i >= 1; i--) { out[i] = Number(x & 255n); x >>= 8n; }
+  return out;
+}
+
+async function bip39Seed(words) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(words.join(" ")),
+    "PBKDF2", false, ["deriveBits"]);
+  // 2048 rounds, salt "mnemonic" — an empty BIP-39 passphrase is assumed
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-512", salt: enc.encode("mnemonic"), iterations: 2048 },
+    key, 512);
+  return new Uint8Array(bits);
+}
+async function fingerprintOfSeed(seed) {
+  const hk = await crypto.subtle.importKey("raw", new TextEncoder().encode("Bitcoin seed"),
+    { name: "HMAC", hash: "SHA-512" }, false, ["sign"]);
+  const I = new Uint8Array(await crypto.subtle.sign("HMAC", hk, seed));
+  const pub = secpPub(BigInt("0x" + hexOf(I.slice(0, 32))));
+  if (!pub) return null;                       // probability about 2^-127
+  const sha = new Uint8Array(await crypto.subtle.digest("SHA-256", pub));
+  return hexOf(ripemd160(sha).slice(0, 4));
+}
+const masterFingerprint = async words => fingerprintOfSeed(await bip39Seed(words));
+
 function seedqrDigits(words) {
   return words.map(w => String(IDX.get(w)).padStart(4, "0")).join("");
 }
@@ -3527,6 +3655,7 @@ function qrHide() {
   $("qrveil").style.display = "none";
   const c = $("qrcanvas");
   c.width = c.height = 1;               // wipe, so the secret does not linger off-screen
+  $("qrfp").textContent = "…";
 }
 // Every open starts blurred — the reveal is for the moment a scanner is
 // actually pointed at the screen, so it is deliberately not sticky.
@@ -3557,9 +3686,16 @@ function openSeedQR(text) {
   qrShield(true);
   $("qrveil").style.display = "flex";
   $("qrclose").focus();
+  // async fill; the token stops a slow result landing in a reopened modal
+  const token = ++qrOpenCount;
+  $("qrfp").textContent = "…";
+  masterFingerprint(words).then(fp => {
+    if (token === qrOpenCount && $("qrveil").style.display !== "none")
+      $("qrfp").textContent = fp || "unavailable";
+  });
 }
+let qrOpenCount = 0;
 $("inqr").onclick = () => openSeedQR($("in").value);
-$("fqr").onclick = () => openSeedQR($("full").textContent);
 $("qrpeek").onclick = () => qrShield(!$("qrbox").classList.contains("shield"));
 $("qrclose").onclick = qrHide;
 $("qrveil").addEventListener("click", e => { if (e.target === $("qrveil")) qrHide(); });
@@ -3577,7 +3713,7 @@ $("incopy").onclick = () => {
 
 const copy = t => navigator.clipboard?.writeText(t).catch(() => {});
 
-$("gen").onclick = () => {
+$("gen").onclick = async () => {
   try {
     $("in").value = randomWords(+$("genlen").value).join(" ");
   } catch (e) {
@@ -3585,7 +3721,13 @@ $("gen").onclick = () => {
     $("st").textContent = "✕  " + e.message + " — do not use this page to generate a phrase.";
     return;
   }
-  calculate();
+  if (!await calculate()) return;
+  // generator output is born hidden, complete or not
+  shieldOn();
+  $("inhint").style.display = "block";
+  $("inhint").textContent = `All ${prefix.length} words came from your browser’s random number `
+    + `generator, hidden until you press the eye. Now choose the ending: click a word below, `
+    + `or press Pick at random.`;
 };
 // The footer's word-list fingerprint comes from the same constant the
 // verification compares against, so the two can never drift apart.
@@ -3612,16 +3754,6 @@ $("clr").onclick = () => {
   $("in").value = ""; $("out").style.display = "none"; $("testout").style.display = "none";
   $("randnote").style.display = "none"; $("meter").style.display = "none";
   $("st").textContent = ""; current = []; prefix = [];
-};
-$("fpeek").onclick = () => {
-  const hidden = $("full").classList.toggle("shield");
-  $("fpeek").setAttribute("aria-pressed", String(!hidden));
-  $("fpeek").setAttribute("aria-label", hidden ? "Show the phrase" : "Hide the phrase");
-  $("fpeekslash").style.display = hidden ? "none" : "block";
-};
-$("fcopy").onclick = () => {
-  copy($("full").textContent.trim());
-  $("cliphint").style.display = "block";
 };
 $("in").addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") calculate();
