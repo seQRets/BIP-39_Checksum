@@ -453,10 +453,10 @@
       <button id="gen">Generate partial seed</button>
       <button class="primary" id="genfull">Generate complete seed</button>
     </div>
-    <div class="hint">⌘/Ctrl + Enter to calculate. Both generate buttons draw from your
-      browser’s random number generator, the one built for security work. A partial seed stops
-      one word short, so you can watch the checksum narrow the endings and pick one yourself; a
-      complete seed is finished for you. Nothing is saved, recorded or sent anywhere.</div>
+    <div class="hint">Both generate buttons draw from your browser’s random number generator,
+      the one built for security work. A partial seed stops one word short, so you can watch the
+      checksum narrow the endings and pick one yourself; a complete seed is finished for you.
+      Nothing is saved, recorded or sent anywhere.</div>
     <div class="status" id="st"></div>
     <div class="meter" id="meter" style="display:none">
       <div class="mrow">
@@ -3755,14 +3755,6 @@ $("clr").onclick = () => {
   $("randnote").style.display = "none"; $("meter").style.display = "none";
   $("st").textContent = ""; current = []; prefix = [];
 };
-// The hint promises this shortcut without qualification, so it must work from
-// anywhere on the page — it used to listen only on the box, which meant it
-// went dead the moment a button click moved focus away. The one exception is
-// the QR modal: nothing should recalculate underneath it.
-addEventListener("keydown", e => {
-  if ((e.metaKey || e.ctrlKey) && e.key === "Enter"
-      && $("qrveil").style.display === "none") calculate();
-});
 addEventListener("online", netBadge);
 addEventListener("offline", netBadge);
 netBadge();
