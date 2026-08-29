@@ -22,7 +22,10 @@
        while keeping #F7931A for rules, borders and fills. */
     --accent-ink:#F7931A; --green-ink:#36D399; --red-ink:#F87171;
     --code-ink:#F0B429; --code-bg:rgba(240,180,41,.08);
-    --field:rgba(0,0,0,.35); --grid:rgba(247,147,26,0.025); --glow:rgba(247,147,26,0.13);
+    /* The input box was near-invisible on the pure-black ground: a faintly
+       lighter fill plus its own stronger border make it read as a field. */
+    --field:rgba(255,255,255,.06); --fieldline:rgba(255,255,255,.24);
+    --grid:rgba(247,147,26,0.025); --glow:rgba(247,147,26,0.13);
     --shadow:none;
     --sans:-apple-system,system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
     --mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;
@@ -35,7 +38,8 @@
     --ink:#1B1814; --muted:#57514A; --dim:#7D766B;
     --accent-ink:#9C5206; --green-ink:#0F7A45; --red-ink:#B3261E;
     --code-ink:#8A5A08; --code-bg:rgba(240,180,41,.16);
-    --field:#FFFFFF; --grid:rgba(247,147,26,0.055); --glow:rgba(247,147,26,0.10);
+    --field:#FFFFFF; --fieldline:rgba(27,24,20,.16);
+    --grid:rgba(247,147,26,0.055); --glow:rgba(247,147,26,0.10);
     --shadow:0 1px 2px rgba(27,24,20,.04),0 8px 24px rgba(27,24,20,.05);
   } }
   :root[data-theme="light"]{
@@ -45,7 +49,8 @@
     --ink:#1B1814; --muted:#57514A; --dim:#7D766B;
     --accent-ink:#9C5206; --green-ink:#0F7A45; --red-ink:#B3261E;
     --code-ink:#8A5A08; --code-bg:rgba(240,180,41,.16);
-    --field:#FFFFFF; --grid:rgba(247,147,26,0.055); --glow:rgba(247,147,26,0.10);
+    --field:#FFFFFF; --fieldline:rgba(27,24,20,.16);
+    --grid:rgba(247,147,26,0.055); --glow:rgba(247,147,26,0.10);
     --shadow:0 1px 2px rgba(27,24,20,.04),0 8px 24px rgba(27,24,20,.05);
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -122,7 +127,7 @@
   .badge.off .led{background:var(--green)}
 
   /* ---- input ---- */
-  textarea{width:100%;min-height:7rem;padding:1rem 1.1rem;border:1px solid var(--line);
+  textarea{width:100%;min-height:7rem;padding:1rem 1.1rem;border:1px solid var(--fieldline);
     border-radius:12px;background:var(--field);color:var(--ink);resize:vertical;
     font:15px/1.9 var(--mono);letter-spacing:.02em}
   textarea::placeholder{color:var(--dim)}
@@ -171,6 +176,10 @@
     background-position:calc(100% - 1.5rem) 52%,calc(100% - 1.18rem) 52%;
     background-size:.32rem .32rem;background-repeat:no-repeat}
   select:hover{border-color:rgba(247,147,26,.5);color:var(--ink)}
+  /* The browser paints the dropdown list with the select's own colors, and the
+     translucent panel made options unreadable in dark mode — give the list a
+     solid ground and full-contrast text explicitly. */
+  option{background:var(--bg);color:var(--ink)}
   .meter{margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--line2)}
   #inputcard,#meter{scroll-margin-top:1.25rem}
   .mrow{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;margin-bottom:.55rem}
@@ -503,6 +512,40 @@
   <div class="card">
     <div class="h">Questions</div>
     <div class="qa">
+
+      <div class="grp2">What this is</div>
+
+      <details>
+        <summary>Why would I use this tool? What does it do for me?</summary>
+        <p>It does three jobs. <b>Finish a seed:</b> if you chose your first 11, 14, 17, 20 or
+        23 words yourself — by dice, by hand, or with another tool — a wallet will still reject
+        the phrase unless the last word carries the right checksum. Type your words in and this
+        page computes every last word that works. <b>Create a seed:</b> the generate buttons
+        draw a brand-new valid seed phrase from your browser's cryptographic randomness,
+        entirely on your machine. <b>Understand a seed:</b> the questions below explain why the
+        last word is special, what the checksum does, and what makes a phrase strong or weak.
+        For a seed that will guard real money, follow the six steps at the top and run this
+        page offline first.</p>
+      </details>
+
+      <details>
+        <summary>What do all the buttons actually do?</summary>
+        <p><b>Find checksum words</b> — takes the words in the box and lists every valid final
+        word for them. Click any candidate to see the completed phrase.</p>
+        <p><b>Generate partial seed</b> — draws the number of random words you picked in the
+        dropdown (11–23) and calculates their valid endings, but leaves the choice of ending to
+        you. Use it when you want to see the candidates and pick your own.</p>
+        <p><b>Generate complete seed</b> — does everything in one press: draws the random
+        words, calculates the endings, and picks one at random too. The finished, wallet-ready
+        phrase lands in the box, blurred until the eye button reveals it.</p>
+        <p><b>Pick at random</b> — once endings are listed, lets the browser's cryptographic
+        generator choose one for you instead of you clicking a favourite.</p>
+        <p><b>Load example</b> — fills the box with the BIP-39 standard's published test
+        phrase. Safe to experiment with; never use it for real funds.</p>
+        <p><b>Verify this page</b> — runs the built-in self-test: the page recomputes answers
+        published in the BIP-39 standard and checks its own word list is unaltered.</p>
+        <p><b>Clear</b> — empties the box and all results.</p>
+      </details>
 
       <div class="grp2">The last word</div>
 
