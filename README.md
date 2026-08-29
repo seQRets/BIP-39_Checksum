@@ -4,7 +4,7 @@ Generate a complete BIP-39 seed phrase, or find every valid final word for the
 words you already have. Complete seeds can be shown as a standard SeedQR for
 wallets that scan a seed in.
 
-A single self-contained HTML file. No build step, no dependencies, no network —
+A single self-contained HTML file. No build step, no dependencies, never touches the internet —
 open it and it works, online or off.
 
 **Live:** <https://myseedphrase.app>
@@ -78,7 +78,7 @@ it ever tried — nothing is fetched from the internet at all, not a typeface, n
 an image, not a line of code. (In technical terms: a `Content-Security-Policy`
 meta tag set to `default-src 'none'`, with one exception — `img-src data:`, which
 allows the favicon that is written into the page itself. `data:` is inline, not a
-fetch, so no network source is permitted by any directive.) But that only makes
+fetch, so no internet source is permitted by any directive.) But that only makes
 *this page* safe, not your browser or your computer. A badge at the top tells you
 whether you are currently online.
 
@@ -153,7 +153,7 @@ in to it, and do not install anything into it.
 
 - **macOS:** Control Centre → Wi-Fi **off**. Unplug any Ethernet or dock cable.
 - **Windows:** Action Centre → **Airplane mode** on. Unplug Ethernet.
-- **Linux:** network menu → turn networking off, or `nmcli networking off`
+- **Linux:** the connection menu → turn networking off, or `nmcli networking off`
 
 Turn off phone tethering and Bluetooth too, if you use them.
 
@@ -176,7 +176,7 @@ Two checks before you type anything real:
    word list has not been altered. It checks the *page* — it can tell you
    nothing about your computer.
 
-Both work with no network. Everything on the page does.
+Both work with no internet. Everything on the page does.
 
 ### Step 6 — When you are finished
 
@@ -337,7 +337,7 @@ Node 22 or later and Google Chrome, and nothing else — no install step, no
 dependencies, in keeping with the rest of this repository. Set `CHROME` if the
 binary is somewhere unusual.
 
-It also refuses any Content-Security-Policy that names a network origin, and
+It also refuses any Content-Security-Policy that names an internet origin, and
 checks that the logo — which exists three times over, as `BIP-39-logo.svg`, as
 the inline mark in the header, and as the favicon's data URI — is the same
 artwork in all three.
@@ -410,8 +410,8 @@ of these:
 - **Stray records.** Any extra A or CNAME on the same name pointing elsewhere
   will fail the check.
 
-Worth getting right rather than leaving for later: over plain HTTP anyone on the
-network path can substitute their own copy of this page — which here means their
+Worth getting right rather than leaving for later: over plain HTTP anyone between
+you and the server can substitute their own copy of this page — which here means their
 own word list, or their own generator.
 
 Verify with:
@@ -442,9 +442,9 @@ per [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116). Preferred route is a
 [private vulnerability report](https://github.com/seQRets/My-Seed-Phrase/security/advisories/new)
 on this repository; `security@seqrets.app` also reaches us.
 
-There is no backend, no database and no network call, so the findings that
+There is no backend, no database and no internet call, so the findings that
 matter most are a fault in the checksum or entropy calculations, anything that
-causes the page to make a network request, and anything that weakens the
+causes the page to make an internet request, and anything that weakens the
 randomness used to generate words.
 
 The `Expires` field in that file has to be renewed before **1 August 2027** —

@@ -28,13 +28,13 @@ tells us whether the copy you loaded matches what was published.
 ## Scope
 
 This project is one self-contained HTML file. There is no backend, no database,
-no accounts, no cookies and no network calls, so the surface is narrow and the
+no accounts, no cookies and no internet calls, so the surface is narrow and the
 things that matter are specific.
 
 **In scope**
 
 - Wrong results from the checksum or candidate-word calculation
-- Anything that causes the page to make a network request
+- Anything that causes the page to make an internet request
 - Anything weakening the randomness behind *Generate at random* or *Pick at random*
 - Anything that could alter the embedded BIP-39 word list without the built-in
   verification catching it
