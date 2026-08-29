@@ -98,6 +98,26 @@
   .cta:hover{background:var(--gold);border-color:var(--gold)}
   .cta:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
   .ctanote{font-size:.78rem;color:var(--dim);letter-spacing:.02em}
+  /* ---- tooltips: hover/focus on desktop, tap on mobile (JS toggles .on) ---- */
+  .tipwrap{position:relative;display:inline-flex;align-items:center}
+  .tipbtn{width:1.6em;height:1.6em;border-radius:50%;border:1px solid var(--line);
+    background:var(--panel);color:var(--dim);font:700 .8em/1 var(--sans);cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;padding:0;
+    letter-spacing:0;text-transform:none}
+  .tipbtn:hover{color:var(--accent-ink);border-color:rgba(247,147,26,.5)}
+  .tipbtn:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+  .tipbox{position:absolute;top:calc(100% + .65rem);left:50%;transform:translateX(-50%);
+    z-index:30;width:min(21rem,84vw);background:var(--bg);border:1px solid var(--line);
+    border-radius:12px;padding:.85rem 1.05rem;box-shadow:0 8px 30px rgba(0,0,0,.45);
+    font:400 .82rem/1.7 var(--sans);letter-spacing:.01em;text-transform:none;
+    color:var(--muted);text-align:left;opacity:0;visibility:hidden;
+    transition:opacity .15s;pointer-events:none}
+  .tipbox b{color:var(--ink)}
+  .tipbox code{font-size:.9em}
+  .tipwrap:hover .tipbox,.tipwrap:focus-within .tipbox,.tipwrap.on .tipbox{
+    opacity:1;visibility:visible;pointer-events:auto}
+  /* the title's trigger must not inherit the headline size */
+  h1 .tipwrap{font-size:1.05rem;vertical-align:super;margin-left:.6rem}
 
   .stats{display:flex;gap:clamp(2rem,6vw,4.5rem);margin:2.6rem 0 2.2rem;flex-wrap:wrap}
   .stat .num{font-size:clamp(1.7rem,4vw,2.4rem);font-weight:800;letter-spacing:-.02em;
@@ -269,8 +289,17 @@
   .warn ol{margin:.7rem 0 .2rem;padding-left:1.35rem}
   .warn ol li{font-size:.88rem;padding-left:.3rem;margin-bottom:.45rem;list-style:decimal}
   .warn ol li::before{content:none}
-  .warn details{margin-top:.7rem}
+  .warn details{margin-top:0}
   .warn details p{font-size:.88rem;margin-top:.6rem}
+  /* the offline-guide disclosure: one clean line, larger type, and the same
+     rotating chevron as the Q&A header instead of the little triangle */
+  .warn summary{display:flex;align-items:center;gap:.6rem;color:var(--ink);
+    font-size:.95rem;font-weight:800;letter-spacing:.16em}
+  .warn summary:hover{color:var(--accent-ink)}
+  .warn summary::before{content:'❯';color:var(--accent-ink);display:inline-block;
+    font-size:1.25em;line-height:1;margin-right:0;
+    transform:none;transition:transform .2s ease}
+  .warn details[open] summary::before{content:'❯';transform:rotate(90deg)}
   li{font-size:.95rem;color:var(--muted);line-height:1.5;padding-left:1.4rem;
      position:relative;margin-bottom:.6rem}
   li::before{content:'';position:absolute;left:0;top:.55em;width:8px;height:8px;
@@ -278,7 +307,9 @@
   li b{color:var(--ink);font-weight:700}
   .warn{border-left:2px solid var(--orange);padding:.85rem 1.15rem;
     background:rgba(247,147,26,.05);border-radius:0 12px 12px 0;
-    font-size:.92rem;color:var(--muted);margin-bottom:1.6rem}
+    /* the stats row used to hold the hero and this strip apart — now the strip
+       spaces itself */
+    font-size:.92rem;color:var(--muted);margin:2.6rem 0 1.8rem}
   .warn b{color:var(--ink)}
   .qa details{margin:0;border-bottom:1px solid var(--line2)}
   /* No rule directly above a group heading — the heading's own border-top is the
@@ -404,7 +435,10 @@
     </div>
     <button id="theme" type="button" aria-label="Switch colour theme"><span id="themeglyph">☀</span> <span id="themetxt">Light</span></button>
   </div>
-  <h1>My <em>Seed Phrase</em></h1>
+  <h1>My <em>Seed Phrase</em><span class="tipwrap"><button class="tipbtn" type="button"
+      aria-label="Why this page is safe to use">i</button><span class="tipbox" role="tooltip"
+      ><b>Nothing</b> leaves this page.<br><b>Offline</b> — works with the wi-fi
+      off.<br><b>One page</b> — nothing to install.</span></span></h1>
   <p class="dek"><b>The BIP-39 last-word calculator &amp; seed generator.</b> Every seed phrase
      ends in a checksum, so the last word is not a free choice — give this page the words you
      have and it finds every valid final word, or draws you a complete seed, checksum included.
@@ -414,18 +448,12 @@
     <span class="ctanote">Type the words you have — or generate a whole seed — and press calculate.</span>
   </div>
 
-  <div class="stats">
-    <div class="stat"><div class="num">Nothing</div><div class="lab">Leaves this page</div></div>
-    <div class="stat"><div class="num">Offline</div><div class="lab">Works with the wi-fi off</div></div>
-    <div class="stat"><div class="num">One page</div><div class="lab">Nothing to install</div></div>
-  </div>
-
   <div class="warn">
-    <b>Run this offline for anything real.</b> This page never sends anything anywhere, and it
-    tells your browser to refuse if it ever tried — but that only makes this page safe, not the
-    browser it runs in or the computer underneath it.
     <details>
       <summary>How to run it safely — 6 steps</summary>
+      <p><b>Run this offline for anything real.</b> This page never sends anything anywhere,
+      and it tells your browser to refuse if it ever tried — but that only makes this page
+      safe, not the browser it runs in or the computer underneath it.</p>
       <p><b>Browser extensions are the risk this page cannot touch.</b> Anything you have added
       to your browser — a password manager, an ad blocker, a coupon or shopping tool — can read
       every word you type here and every phrase this page produces. No web page can stop that,
@@ -494,11 +522,13 @@
       </select>
       <button id="gen">Generate partial seed</button>
       <button class="primary" id="genfull">Generate complete seed</button>
+      <span class="tipwrap"><button class="tipbtn" type="button"
+        aria-label="What the generate buttons do">i</button><span class="tipbox"
+        role="tooltip">Both generate buttons draw from your browser's random number generator,
+        the one built for security work. A partial seed stops one word short, so you can watch
+        the checksum narrow the endings and pick one yourself; a complete seed is finished for
+        you. Nothing is saved, recorded or sent anywhere.</span></span>
     </div>
-    <div class="hint">Both generate buttons draw from your browser’s random number generator,
-      the one built for security work. A partial seed stops one word short, so you can watch the
-      checksum narrow the endings and pick one yourself; a complete seed is finished for you.
-      Nothing is saved, recorded or sent anywhere.</div>
     <div class="status" id="st"></div>
     <div class="meter" id="meter" style="display:none">
       <div class="mrow">
@@ -3539,6 +3569,18 @@ applyTheme(store.get());
 
 // the Q&A header advertises how much it folds away
 $("qacount").textContent = "· " + document.querySelectorAll(".qatop .qa details").length + " questions";
+
+/* tooltips: CSS handles hover and keyboard focus; a tap toggles for touch
+   screens, and tapping anywhere else closes whatever is open */
+document.querySelectorAll(".tipbtn").forEach(b => {
+  b.addEventListener("click", e => {
+    e.stopPropagation();
+    const w = b.parentElement;
+    document.querySelectorAll(".tipwrap.on").forEach(x => { if (x !== w) x.classList.remove("on") });
+    w.classList.toggle("on");
+  });
+});
+addEventListener("click", () => document.querySelectorAll(".tipwrap.on").forEach(x => x.classList.remove("on")));
 updateMeter();
 
 /* ---- random pick ---------------------------------------------------- */
