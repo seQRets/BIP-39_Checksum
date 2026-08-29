@@ -168,7 +168,7 @@ window, or press <kbd>Cmd/Ctrl</kbd> + <kbd>O</kbd> and pick it.
 
 Two checks before you type anything real:
 
-1. The badge near the top should read **"Offline — no route out"** in green. If
+1. The badge near the top should read **"Offline — safe to generate"** in green. If
    it still says *Online*, something is still connected — go back to step 3.
 2. Press **Verify this page**. It must say **14 of 14 checks passed**. That
    confirms the calculator gets the right answer on example phrases whose
