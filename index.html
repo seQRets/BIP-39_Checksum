@@ -167,6 +167,12 @@
   .ictl svg{width:16px;height:16px}
   textarea:focus{outline:none;border-color:rgba(247,147,26,.6);
     box-shadow:0 0 0 3px rgba(247,147,26,.09)}
+  /* live verdict on a complete phrase: green when the checksum verifies, red
+     when it does not. Declared after :focus so the verdict wins while typing. */
+  textarea.okseed{border-color:rgba(54,211,153,.75);box-shadow:0 0 0 3px rgba(54,211,153,.13)}
+  textarea.badseed{border-color:rgba(248,113,113,.85);box-shadow:0 0 0 3px rgba(248,113,113,.13)}
+  .invalidnote{display:none;font-size:.9rem;font-weight:600;color:var(--red-ink);
+    margin-top:.7rem}
   .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-top:1rem}
   button{font-family:var(--sans);font-size:.82rem;font-weight:700;letter-spacing:.1em;
     text-transform:uppercase;padding:.7rem 1.15rem;border-radius:9px;cursor:pointer;
@@ -250,7 +256,7 @@
     letter-spacing:0;text-transform:none}
   .qrbox{background:#fff;border-radius:12px;padding:10px;line-height:0;
     display:block;width:fit-content;margin:0 auto}
-  .qrbox canvas{width:100%;max-width:248px;height:auto;image-rendering:pixelated}
+  .qrbox canvas{width:100%;max-width:320px;height:auto;image-rendering:pixelated}
   /* The QR opens blurred — a QR is machine-readable at a glance, so it stays
      smudged until the eye says otherwise, and the reveal is never sticky. */
   .qrbox.shield canvas{filter:blur(14px)}
@@ -518,6 +524,7 @@
     </div>
     <div class="infp" id="infp" style="display:none">Master fingerprint&ensp;<b id="infpv">…</b></div>
     </div>
+    <div class="invalidnote" id="invalidnote"></div>
     <div class="hint" id="inhint" style="display:none"></div>
     <div class="row">
       <button class="primary" id="go">Find checksum words</button>
@@ -751,15 +758,19 @@
   </div>
 
   <div class="qrveil" id="qrveil" style="display:none" role="dialog" aria-modal="true"
-       aria-label="Your seed as a SeedQR">
+       aria-label="Your Seed QR">
     <div class="qrcard">
       <div class="qrhead">
-        <div class="h">Your seed as a SeedQR</div>
+        <div class="h">Your Seed QR</div>
         <div class="qrtools">
           <button class="ictl" id="qrpeek" type="button" aria-label="Reveal the QR" aria-pressed="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
               <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>
               <line id="qrpeekslash" x1="4" y1="21" x2="20" y2="3" style="display:none"/>
+            </svg></button>
+          <button class="ictl" id="qrdl" type="button" aria-label="Download the SeedQR as an image">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 4v11"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/>
             </svg></button>
           <button class="qrx" id="qrclose" type="button" aria-label="Close">×</button>
         </div>
@@ -769,9 +780,11 @@
       <div class="hint">A standard SeedQR — if your hardware wallet can scan one in, it
         imports this seed directly, with nothing typed on the device. <b>Whoever scans this
         owns the wallet</b>, and any camera in the room can. Reveal it only for your scanner,
-        and close it once scanned. The fingerprint is not a secret: after scanning, your
-        wallet should show the same eight characters (assuming no BIP-39 passphrase) — if it
-        differs, the wallet did not read this seed.</div>
+        and close it once scanned. Downloading saves the SeedQR — <b>which is the seed</b> —
+        as a picture on this computer; delete the file once it has served its purpose. The
+        fingerprint is not a secret: after scanning, your wallet should show the same eight
+        characters (assuming no BIP-39 passphrase) — if it differs, the wallet did not read
+        this seed.</div>
     </div>
   </div>
 
@@ -3177,6 +3190,7 @@ function shieldReset() {
   $("inctl").style.display = "none";
   $("inhint").style.display = "none";
   $("infp").style.display = "none";
+  clearSeedVerdict();
 }
 // Visible, unblurred, controls shown — for typed or calculated words. The
 // eye, copy and QR serve hand-entered seeds too; whole-seed state and the
@@ -3190,6 +3204,46 @@ function showUnshielded() {
   $("inwrap").classList.add("on");
   $("inctl").style.display = "flex";
   setPeek(true);
+  // The QR is only offered while the box holds a complete seed whose checksum
+  // verifies — and that includes one typed in by hand, not just one this page
+  // assembled. The fingerprint comes with it, and the field's border renders
+  // the verdict: green for a valid seed, red for a complete-length phrase
+  // that is not one. In-progress lengths (11 words, say) stay neutral. The
+  // check is async (SHA-256), so the token stops a stale result landing.
+  $("inqr").style.display = "none";
+  clearSeedVerdict();
+  const words = $("in").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if ([12, 15, 18, 21, 24].includes(words.length)) {
+    const bad = [...new Set(words.filter(w => !IDX.has(w)))];
+    if (bad.length) {
+      seedVerdict(false, "Not a valid seed — these are not BIP-39 words: " + bad.join(", "));
+    } else {
+      const token = ++qrOfferCount;
+      candidates(words.slice(0, -1)).then(list => {
+        if (token !== qrOfferCount) return;
+        if (list.includes(words[words.length - 1])) {
+          seedVerdict(true);
+          $("inqr").style.display = "";
+          showBoxFingerprint();
+        } else {
+          seedVerdict(false, "Not a valid seed — the last word fails the checksum. Enter the "
+            + "first " + (words.length - 1) + " words and press Find checksum words to see "
+            + "every ending that works.");
+        }
+      });
+    }
+  }
+}
+let qrOfferCount = 0;
+function clearSeedVerdict() {
+  $("in").classList.remove("okseed", "badseed");
+  $("invalidnote").style.display = "none";
+}
+function seedVerdict(ok, msg) {
+  $("in").classList.toggle("okseed", ok);
+  $("in").classList.toggle("badseed", !ok);
+  $("invalidnote").style.display = ok ? "none" : "block";
+  if (!ok) $("invalidnote").textContent = "✕  " + msg;
 }
 // The fingerprint under the words, for anyone who never opens the QR. It is
 // recomputed whenever the ending changes, since the ending changes it.
@@ -3250,6 +3304,7 @@ async function calculate(reveal = true) {
       $("in").value = [...prefix, w].join(" ");
       updateMeter();
       showBoxFingerprint();
+      seedVerdict(true);
       $("inqr").style.display = "";
       $("randnote").style.display = "block";
       $("randnote").textContent = `“${w}” is word ${CFG[prefix.length].n} — the completed seed, `
@@ -3804,7 +3859,35 @@ function qrHide() {
   const c = $("qrcanvas");
   c.width = c.height = 1;               // wipe, so the secret does not linger off-screen
   $("qrfp").textContent = "…";
+  lastQR = null;
 }
+let lastQR = null;
+// A high-resolution copy for saving: ~2000px on a side, drawn fresh from the
+// same matrix the modal shows — the identical SeedQR, just bigger. The file
+// holds the seed; the hint tells the user to delete it after use.
+$("qrdl").onclick = () => {
+  if (!lastQR) return;
+  const n = lastQR.getModuleCount(), quiet = 4;
+  const scale = Math.ceil(2048 / (n + quiet * 2));
+  const size = (n + quiet * 2) * scale;
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = "#000";
+  for (let row = 0; row < n; row++)
+    for (let col = 0; col < n; col++)
+      if (lastQR.isDark(row, col))
+        ctx.fillRect((col + quiet) * scale, (row + quiet) * scale, scale, scale);
+  c.toBlob(b => {
+    const u = URL.createObjectURL(b);
+    const a = document.createElement("a");
+    a.href = u; a.download = "seedqr.png";
+    a.click();
+    URL.revokeObjectURL(u);
+    c.width = c.height = 1;             // wipe the off-screen drawing
+  }, "image/png");
+};
 // Every open starts blurred — the reveal is for the moment a scanner is
 // actually pointed at the screen, so it is deliberately not sticky.
 function qrShield(on) {
@@ -3813,13 +3896,17 @@ function qrShield(on) {
   $("qrpeek").setAttribute("aria-label", on ? "Reveal the QR" : "Blur the QR");
   $("qrpeekslash").style.display = on ? "none" : "block";
 }
-function openSeedQR(text) {
+async function openSeedQR(text) {
   const words = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  // only a complete, valid phrase has a SeedQR
+  // only a complete phrase whose checksum verifies has a SeedQR — encoding an
+  // invalid seed would hand a wallet twelve words it must reject
   if (![12, 15, 18, 21, 24].includes(words.length) || words.some(w => !IDX.has(w))) return;
+  const endings = await candidates(words.slice(0, -1));
+  if (!endings.includes(words[words.length - 1])) return;
   const qr = qrcode(0, "M");            // 0 = the smallest version that fits
   qr.addData(seedqrDigits(words), "Numeric");
   qr.make();
+  lastQR = qr;                          // the download button reuses this matrix
   const n = qr.getModuleCount(), scale = 8, quiet = 4;
   const size = (n + quiet * 2) * scale;
   const c = $("qrcanvas");
