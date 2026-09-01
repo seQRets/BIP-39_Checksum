@@ -3178,6 +3178,19 @@ function shieldReset() {
   $("inhint").style.display = "none";
   $("infp").style.display = "none";
 }
+// Visible, unblurred, controls shown — for typed or calculated words. The
+// eye, copy and QR serve hand-entered seeds too; whole-seed state and the
+// now-stale fingerprint still clear.
+function showUnshielded() {
+  whole = false;
+  $("inwrap").classList.remove("fp");
+  $("inhint").style.display = "none";
+  $("infp").style.display = "none";
+  $("in").classList.remove("shield");
+  $("inwrap").classList.add("on");
+  $("inctl").style.display = "flex";
+  setPeek(true);
+}
 // The fingerprint under the words, for anyone who never opens the QR. It is
 // recomputed whenever the ending changes, since the ending changes it.
 let infpCount = 0;
@@ -3194,7 +3207,8 @@ function showBoxFingerprint() {
 }
 
 async function calculate(reveal = true) {
-  shieldReset();
+  if ($("in").value.trim()) showUnshielded();
+  else shieldReset();
   const { words, err } = parse($("in").value);
   $("randnote").style.display = "none";
   updateMeter();
@@ -3874,9 +3888,11 @@ $("wlhash").onclick = () => {
   $("wlhash").title = open ? "Show the whole value" : "Shorten";
 };
 $("in").addEventListener("input", () => {
-  // editing by hand means the box no longer holds the untouched generated
-  // seed — drop the blur and its controls rather than hide typing
-  if ($("inctl").style.display !== "none") shieldReset();
+  // typing must stay visible, so the blur lifts — but the eye, copy and QR
+  // controls serve hand-entered seeds too: they show whenever the box has
+  // content and leave only when it is empty
+  if ($("in").value.trim()) showUnshielded();
+  else shieldReset();
   updateMeter();
 });
 $("testclose").onclick = () => { $("testout").style.display = "none" };
