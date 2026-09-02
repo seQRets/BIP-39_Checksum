@@ -363,6 +363,18 @@
   details[open] summary::before{content:'▾'}
   details p{font-size:.9rem;color:var(--muted);margin-top:.8rem;line-height:1.6}
 
+  /* ---- framed-page guard ----
+     Shown instead of the tool when another site has put this page in a frame.
+     No link in here on purpose: a frame can be sandboxed so that links cannot
+     escape it, and an address you type yourself is the one that cannot lie. */
+  #framed{display:none}
+  html[data-framed] .topbar,html[data-framed] main{display:none}
+  html[data-framed] #framed{display:block;max-width:34rem;margin:14vh auto 0;
+    padding:0 1.4rem;font:400 1rem/1.75 var(--sans);color:var(--ink)}
+  #framed p{margin:0 0 1rem}
+  #framed b{color:var(--accent-ink)}
+  #framed .addr{display:block;margin:1.2rem 0;font:600 1.05rem/1.5 var(--mono);
+    color:var(--accent-ink);overflow-wrap:anywhere}
   footer{border-top:1px solid var(--line);margin-top:2.6rem;padding-top:1.5rem;
     display:flex;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;
     font-size:.72rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
@@ -409,9 +421,12 @@
        tucked into the lower-right corner of the field */
     .row .tipwrap{grid-column:1 / -1;order:99;justify-self:end}
     .row .tipbtn{width:1.9em;height:1.9em;padding:0}
-    /* centered bubbles overflow a phone screen when the trigger sits near an
-       edge — hang them from the trigger's right edge instead */
-    .tipbox{left:auto;right:0;transform:none}
+    /* At this width the bubble is nearly the whole screen, so it cannot hang
+       off its trigger at all: the ⓘ in the heading sits near the left edge when
+       the title wraps and near the right edge when it does not, and either way
+       one side falls off. Pin it to the screen instead of to the trigger. */
+    .tipbox{position:fixed;left:1rem;right:1rem;top:auto;bottom:1rem;
+            width:auto;max-width:none;transform:none}
   }
   /* the generate labels are the longest on the page; the very narrowest
      screens need slightly smaller type to keep them on one line */
@@ -419,9 +434,21 @@
     #genfull,#gen{font-size:.72rem;letter-spacing:.03em}
   }
 </style>
-<script>try{if(localStorage.getItem("bip39-theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script>
+<script>try{if(localStorage.getItem("bip39-theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}
+/* A page can only refuse to be framed with a real HTTP header, and this one is
+   served as a plain file, so it checks for itself. Fail closed: anything that is
+   not plainly the top-level page gets the warning instead of the tool. */
+try{if(window.top!==window.self)document.documentElement.setAttribute("data-framed","")}catch(e){document.documentElement.setAttribute("data-framed","")}</script>
 </head>
 <body>
+<div id="framed" role="alert">
+  <p><b>Another website is showing you this page inside itself.</b> That site decides what you
+  see around it, so none of the tool will run here. Do not type a seed phrase into this window.</p>
+  <p>Open the page yourself instead. Type this address into your browser:</p>
+  <span class="addr">myseedphrase.app</span>
+  <p>Better still, save the page from that address and open it on a computer with the wi-fi
+  off. That is the way this page is meant to be used.</p>
+</div>
 <div class="topbar"></div>
 <main>
   <div class="topline">
@@ -494,8 +521,8 @@
             and take a fingerprint of its own built-in word list — an altered copy gets
             them wrong. It needs no connection, and it checks the page, not your
             computer.</li>
-        <li>Write the phrase down by hand — never the copy buttons — then quit the browser
-            completely before reconnecting.</li>
+        <li>Write the phrase down by hand — never the copy or download buttons — then quit
+            the browser completely before reconnecting.</li>
       </ol>
     </details>
   </div>
@@ -785,6 +812,7 @@
         fingerprint is not a secret: after scanning, your wallet should show the same eight
         characters (assuming no BIP-39 passphrase) — if it differs, the wallet did not read
         this seed.</div>
+      <div class="hint" id="qrdlhint" style="display:none"></div>
     </div>
   </div>
 
@@ -792,7 +820,7 @@
     <div class="l">MY SEED PHRASE <span>· BIP-39 CHECKSUM CALCULATOR</span></div>
     <!-- bump the version on every release: it lets a saved copy be compared
          against the repo's releases -->
-    <div class="r">v1.5.2 · RUNS OFFLINE</div>
+    <div class="r">v1.6.0 · RUNS OFFLINE</div>
     <details class="creds">
       <summary>Credits</summary>
       <div class="prov">
@@ -3857,10 +3885,12 @@ function seedqrDigits(words) {
 }
 
 function qrHide() {
+  qrOpenCount++;                        // any open still in flight is now stale
   $("qrveil").style.display = "none";
   const c = $("qrcanvas");
   c.width = c.height = 1;               // wipe, so the secret does not linger off-screen
   $("qrfp").textContent = "…";
+  $("qrdlhint").style.display = "none";
   lastQR = null;
 }
 let lastQR = null;
@@ -3888,6 +3918,13 @@ $("qrdl").onclick = () => {
     a.click();
     URL.revokeObjectURL(u);
     c.width = c.height = 1;             // wipe the off-screen drawing
+    // Copy answers the user; downloading writes a file that outlives the tab,
+    // so it should answer louder, not stay silent.
+    $("qrdlhint").style.display = "block";
+    $("qrdlhint").textContent = "\u26a0\ufe0e Saved as seedqr.png on this computer. That "
+      + "picture is the seed \u2014 anything that can read the folder can take the wallet, and "
+      + "a downloads folder is often copied up to iCloud or OneDrive without being asked. "
+      + "Delete it as soon as it has done its job.";
   }, "image/png");
 };
 // Every open starts blurred — the reveal is for the moment a scanner is
@@ -3903,7 +3940,15 @@ async function openSeedQR(text) {
   // only a complete phrase whose checksum verifies has a SeedQR — encoding an
   // invalid seed would hand a wallet twelve words it must reject
   if (![12, 15, 18, 21, 24].includes(words.length) || words.some(w => !IDX.has(w))) return;
+  // Everything below this line runs after an await, so a close — or a second
+  // open — can land in the middle of it. Claim a token first and stand down if
+  // it has moved, or a slow result repaints the canvas and pushes the window
+  // back open after the reader has already shut it.
+  const token = ++qrOpenCount;
+  qrOpening = true;
   const endings = await candidates(words.slice(0, -1));
+  qrOpening = false;
+  if (token !== qrOpenCount) return;
   if (!endings.includes(words[words.length - 1])) return;
   const qr = qrcode(0, "M");            // 0 = the smallest version that fits
   qr.addData(seedqrDigits(words), "Numeric");
@@ -3923,8 +3968,7 @@ async function openSeedQR(text) {
   qrShield(true);
   $("qrveil").style.display = "flex";
   $("qrclose").focus();
-  // async fill; the token stops a slow result landing in a reopened modal
-  const token = ++qrOpenCount;
+  // async fill; the same token stops a slow result landing in a reopened modal
   $("qrfp").textContent = "…";
   masterFingerprint(words).then(fp => {
     if (token === qrOpenCount && $("qrveil").style.display !== "none")
@@ -3932,12 +3976,16 @@ async function openSeedQR(text) {
   });
 }
 let qrOpenCount = 0;
+// True only while an open is between its await and the window appearing. Escape
+// pressed in that gap must still count: the window is not up yet, so the test
+// below would otherwise ignore the key and let it open afterwards anyway.
+let qrOpening = false;
 $("inqr").onclick = () => openSeedQR($("in").value);
 $("qrpeek").onclick = () => qrShield(!$("qrbox").classList.contains("shield"));
 $("qrclose").onclick = qrHide;
 $("qrveil").addEventListener("click", e => { if (e.target === $("qrveil")) qrHide(); });
 addEventListener("keydown", e => {
-  if (e.key === "Escape" && $("qrveil").style.display !== "none") qrHide();
+  if (e.key === "Escape" && ($("qrveil").style.display !== "none" || qrOpening)) qrHide();
 });
 
 $("incopy").onclick = () => {
@@ -3996,6 +4044,19 @@ $("clr").onclick = () => {
 };
 addEventListener("online", netBadge);
 addEventListener("offline", netBadge);
+
+// Leaving the page is not the same as the phrase being gone from the screen: the
+// back button can bring a tab back exactly as it was, revealed words and all, in
+// a session the reader thought was finished. So the QR is wiped on the way out,
+// and anything that comes back comes back blurred. Nothing is erased — the eye
+// puts it back — because a phrase somebody is still copying down must not vanish.
+addEventListener("pagehide", qrHide);
+addEventListener("pageshow", e => {
+  if (!e.persisted) return;
+  qrHide();
+  if ($("in").value.trim()) shieldOn();
+});
+
 netBadge();
 </script>
 </body>

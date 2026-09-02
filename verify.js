@@ -92,9 +92,17 @@ async function openPage(browser, url) {
   const cdp = connect(browser.wsUrl);
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
-  const S = (m, p) => cdp.send(m, p, sessionId);
+  const S = (m, p, sid) => cdp.send(m, p, sid || sessionId);
   const logs = [], requests = [], exceptions = [];
+  const childSessions = new Set();
   cdp.on(m => {
+    // a sandboxed or cross-origin frame runs in its own process, so it arrives
+    // as a separate session rather than an execution context in this one
+    if (m.method === 'Target.attachedToTarget' && m.params.targetInfo.type === 'iframe') {
+      childSessions.add(m.params.sessionId);
+      cdp.send('Runtime.enable', {}, m.params.sessionId).catch(() => {});
+    }
+    if (m.method === 'Target.detachedFromTarget') childSessions.delete(m.params.sessionId);
     if (m.sessionId !== sessionId) return;
     if (m.method === 'Runtime.consoleAPICalled') logs.push({ type: m.params.type });
     if (m.method === 'Runtime.exceptionThrown')
@@ -102,14 +110,25 @@ async function openPage(browser, url) {
     if (m.method === 'Network.requestWillBeSent') requests.push(m.params.request.url);
   });
   await S('Runtime.enable'); await S('Network.enable'); await S('Page.enable');
-  await S('Page.navigate', { url });
-  for (let i = 0; i < 200; i++) {
-    const r = await S('Runtime.evaluate', { expression: 'document.readyState', returnByValue: true });
-    if (r.result.value === 'complete') break;
-    await new Promise(r2 => setTimeout(r2, 50));
-  }
+  await S('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
+  const goto = async u => {
+    await S('Page.navigate', { url: u });
+    for (let i = 0; i < 200; i++) {
+      const r = await S('Runtime.evaluate', { expression: 'document.readyState', returnByValue: true });
+      if (r.result.value === 'complete') break;
+      await new Promise(r2 => setTimeout(r2, 50));
+    }
+  };
+  await goto(url);
   return {
-    logs, requests, exceptions, S,
+    logs, requests, exceptions, S, goto, childSessions,
+    evalIn: async (expr, sid) => {
+      const r = await S('Runtime.evaluate',
+        { expression: `(async()=>{${expr}})()`, awaitPromise: true, returnByValue: true }, sid);
+      if (r.exceptionDetails)
+        throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
+      return r.result.value;
+    },
     evaluate: async expr => {
       const r = await S('Runtime.evaluate',
         { expression: `(async()=>{${expr}})()`, awaitPromise: true, returnByValue: true });
@@ -533,6 +552,121 @@ async function pageChecks(browser, fileUrl, httpUrl) {
 }
 
 /* ---- calibration ------------------------------------------------------ */
+// Four things the page does to keep a phrase from outliving the moment it is
+// on screen. None of them is visible in the ordinary flow, so none of them is
+// covered above, and all four are the kind of thing a later edit removes
+// without noticing.
+async function guardChecks(browser, base) {
+  console.log('\n--- keeping the phrase from outliving the moment ---');
+  const p = await openPage(browser, base + '/index.html');
+  // a real download would block a headless run
+  await p.S('Page.setDownloadBehavior', { behavior: 'deny' }).catch(() => {});
+
+  let r = await p.evaluate(`${HELPERS} return {
+    framed: document.documentElement.hasAttribute('data-framed'),
+    mainShown: getComputedStyle(document.querySelector('main')).display !== 'none',
+    warnHidden: getComputedStyle($('framed')).display === 'none'};`);
+  chk('the frame guard leaves the real page alone',
+      !r.framed && r.mainShown && r.warnHidden, JSON.stringify(r));
+
+  await p.goto(base + '/framer');
+  await new Promise(z => setTimeout(z, 700));
+  r = await p.evaluate(`${HELPERS} const d=$('f').contentDocument;
+    await wait(()=>d.getElementById('framed'));
+    const g=d.getElementById('framed');
+    return {framed:d.documentElement.hasAttribute('data-framed'),
+      toolHidden:getComputedStyle(d.querySelector('main')).display==='none',
+      warnShown:getComputedStyle(g).display!=='none',
+      saysAddress:g.textContent.indexOf('myseedphrase.app')>-1,
+      anchors:g.querySelectorAll('a').length};`);
+  chk('framed by another site: the tool is withheld, the address given as text',
+      r.framed && r.toolHidden && r.warnShown && r.saysAddress && r.anchors === 0,
+      JSON.stringify(r));
+
+  await p.goto(base + '/framer?sandbox');
+  await new Promise(z => setTimeout(z, 1200));
+  let sb = null;
+  for (const sid of [...p.childSessions]) {
+    try {
+      const probe = await p.evalIn(`return {isFrame:window.top!==window.self,
+        hasGuard:!!document.getElementById('framed')};`, sid);
+      if (!probe || !probe.isFrame || !probe.hasGuard) continue;
+      sb = await p.evalIn(`return {
+        framed:document.documentElement.hasAttribute('data-framed'),
+        toolHidden:getComputedStyle(document.querySelector('main')).display==='none',
+        warnShown:getComputedStyle(document.getElementById('framed')).display!=='none'};`, sid);
+      break;
+    } catch (e) { /* that session is gone or not ours */ }
+  }
+  chk('a sandboxed frame cannot dodge the guard either',
+      !!sb && sb.framed && sb.toolHidden && sb.warnShown,
+      sb ? JSON.stringify(sb) : 'no sandboxed frame session found');
+
+  await p.goto(base + '/index.html');
+  r = await p.evaluate(`${HELPERS}
+    $('genlen').value='11'; $('genfull').click();
+    if(!await wait(()=>$('in').classList.contains('shield'))) return {err:'genfull timeout'};
+    $('peek').click();
+    const revealed=!$('in').classList.contains('shield'), seed=$('in').value;
+    $('inqr').click();
+    if(!await wait(()=>$('qrcanvas').width>1)) return {err:'QR never drew'};
+    dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
+    await wait(()=>$('in').classList.contains('shield'));
+    return {revealed, reblurred:$('in').classList.contains('shield'),
+      seedKept:$('in').value===seed, qrClosed:$('qrveil').style.display==='none',
+      canvasWiped:$('qrcanvas').width===1};`);
+  chk('coming back to the page re-blurs the seed and wipes the QR', !r.err
+      && r.revealed && r.reblurred && r.seedKept && r.qrClosed && r.canvasWiped,
+      r.err || JSON.stringify(r));
+
+  r = await p.evaluate(`${HELPERS} $('clr').click();
+    $('in').value='abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon';
+    dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
+    // read the verdict here, before the box is cleared for the next case
+    const kept=$('in').value.trim().split(/[ ]+/).length===11;
+    const blurred=$('in').classList.contains('shield');
+    $('clr').click();
+    dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
+    return {kept, blurred,
+      emptyLeftAlone:$('in').value==='' && !$('in').classList.contains('shield')};`);
+  chk('a half-typed phrase is blurred on return, never erased',
+      r.kept && r.blurred && r.emptyLeftAlone, JSON.stringify(r));
+
+  r = await p.evaluate(`${HELPERS} $('clr').click();
+    $('genlen').value='11'; $('genfull').click();
+    if(!await wait(()=>$('in').classList.contains('shield'))) return {err:'genfull timeout'};
+    $('inqr').click(); $('qrclose').click();          // close mid-open
+    await new Promise(z=>setTimeout(z,900));
+    const afterClose={veil:$('qrveil').style.display, canvas:$('qrcanvas').width};
+    $('inqr').click();
+    dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));   // escape mid-open
+    await new Promise(z=>setTimeout(z,900));
+    const afterEsc={veil:$('qrveil').style.display, canvas:$('qrcanvas').width};
+    $('inqr').click();
+    const drew=await wait(()=>$('qrcanvas').width>1);
+    return {afterClose, afterEsc, stillWorks:!!drew && $('qrcanvas').width===264};`);
+  chk('closing mid-open stays closed, and the QR still opens afterwards', !r.err
+      && r.afterClose.veil === 'none' && r.afterClose.canvas === 1
+      && r.afterEsc.veil === 'none' && r.afterEsc.canvas === 1 && r.stillWorks,
+      r.err || JSON.stringify(r));
+
+  r = await p.evaluate(`${HELPERS}
+    const before=$('qrdlhint').style.display;
+    $('qrdl').click();
+    await wait(()=>$('qrdlhint').style.display==='block', 4000);
+    const t=$('qrdlhint').textContent;
+    $('qrclose').click();
+    return {before, shown:$('qrdlhint').style.display!=='none'||t.length>0,
+      namesFile:t.indexOf('seedqr.png')>-1, saysItIsTheSeed:t.indexOf('is the seed')>-1,
+      warnsAboutSync:/iCloud|OneDrive/.test(t),
+      clearedOnClose:$('qrdlhint').style.display==='none'};`);
+  chk('saving the SeedQR to disk says so, and says what the file is',
+      r.before === 'none' && r.shown && r.namesFile && r.saysItIsTheSeed
+      && r.warnsAboutSync && r.clearedOnClose, JSON.stringify(r));
+
+  await p.close();
+}
+
 async function calibrate(browser, fileUrl) {
   console.log('\n--- strength read-out calibration (4,000 draws per length) ---');
   const p = await openPage(browser, fileUrl);
@@ -585,6 +719,19 @@ async function calibrate(browser, fileUrl) {
   sourceChecks();
 
   const server = http.createServer((req, res) => {
+    // two synthetic pages: one that frames the tool the way an attacker would,
+    // and one to navigate away to so the back button can bring the tool back
+    if (req.url.startsWith('/framer')) {
+      const sandbox = req.url.includes('sandbox') ? ' sandbox="allow-scripts"' : '';
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(`<!doctype html><title>not this site</title><body style="margin:0">
+        <h1>Totally Legit Wallet Helper</h1>
+        <iframe id="f" src="/index.html" width="900" height="700"${sandbox}></iframe>`);
+    }
+    if (req.url.startsWith('/away')) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<!doctype html><title>away</title><body>elsewhere');
+    }
     const f = path.join(ROOT, req.url === '/' ? 'index.html' : path.normalize(req.url).replace(/^(\.\.[\/\\])+/, ''));
     fs.readFile(f, (err, data) => {
       if (err) { res.writeHead(404); res.end(); return; }
@@ -601,6 +748,7 @@ async function calibrate(browser, fileUrl) {
   try {
     const fileUrl = pathToFileURL(PAGE).href;
     await pageChecks(browser, fileUrl, `http://localhost:${PORT}/`);
+    await guardChecks(browser, `http://localhost:${PORT}`);
     if (process.argv.includes('--calibrate')) await calibrate(browser, fileUrl);
   } finally {
     browser.proc.kill();
