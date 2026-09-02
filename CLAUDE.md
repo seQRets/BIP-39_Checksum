@@ -54,7 +54,7 @@ BIP-39-logo.svg (source of the inlined header mark + favicon),
    the file and therefore the hash you publish. It is the only place the
    version appears. Notes: a one-line summary, "## New"/"## Fixed" in plain
    English, "still passes 14 of 14", then "## Verify your download" with the
-   shasum block. Current release: v1.6.1.
+   shasum block. Current release: v1.6.2.
 7. Blur rule: anything the generator produces is born hidden (complete AND
    partial seeds); typed words stay visible; state carries through completion;
    the eye flips it. QR + fingerprint appear only when the phrase is complete.
@@ -93,17 +93,25 @@ BIP-39-logo.svg (source of the inlined header mark + favicon),
     window.top !== window.self, fails closed, and withholds the tool. The
     warning carries NO link — a frame can be sandboxed so links cannot escape,
     and an address you type yourself is the one that cannot lie.
+    The guard is structural, not only a stylesheet: a FRAMED const gates
+    calculate(), openSeedQR(), pickAtRandom() and both generate handlers, so a
+    selector edit that stops the hiding cannot hand back a working tool. Note a
+    cross-origin parent can NOT strip the page's CSS or read its DOM — that is
+    not the threat. The threat is our own future edit. Framed with scripting
+    off the guard cannot fire at all, but nothing runs either, so the tool is
+    inert rather than working.
 
 ## How to verify + release
 
-    node verify.js            # 55 checks: drives real Chrome headless, checks
+    node verify.js            # 52 checks: drives real Chrome headless, checks
                               # the page against an INDEPENDENT BIP-39 +
                               # fingerprint implementation, both origins,
-                              # layout 320–1440, blur semantics,
+                              # layout 320/390/1440, blur semantics,
                               # no-scroll-on-generate, links, frame guard
                               # (including a sandboxed frame), blur-on-return,
                               # close-mid-open, the two-press download gate,
-                              # modal reachable on a short screen
+                              # modal reachable on a short screen, and the
+                              # frame guard holding with its CSS defeated
     node verify.js --calibrate  # only when assess() changes
 
 Page self-test must read 14 of 14 (file:// and http).

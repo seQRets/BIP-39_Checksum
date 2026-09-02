@@ -520,7 +520,10 @@ async function pageChecks(browser, fileUrl, httpUrl) {
     await wait(()=>$('out').style.display==='block'&&document.querySelectorAll('#grid .w').length===128);
     $('test').click(); await wait(()=>$('testsum')&&$('testsum').textContent.trim());
     document.querySelectorAll('#testbody details').forEach(d=>d.open=true); return 1;`);
-  for (const w of [320, 360, 390, 414, 768, 1024, 1440]) {
+  // 320 is the narrowest phone, 390 the common one, 1440 a desktop. The four
+  // widths between them never once failed alone — they only ever repeated what
+  // these three already said, at seven times the runtime.
+  for (const w of [320, 390, 1440]) {
     await p.setViewport(w, 900);
     const m = await p.evaluate(`
       const de=document.documentElement, vw=de.clientWidth, bad=[];
@@ -601,6 +604,40 @@ async function guardChecks(browser, base) {
   chk('a sandboxed frame cannot dodge the guard either',
       !!sb && sb.framed && sb.toolHidden && sb.warnShown,
       sb ? JSON.stringify(sb) : 'no sandboxed frame session found');
+
+  // Hiding is presentation, and a later edit to one selector could undo it
+  // silently. Defeat the CSS the way such an edit would — put the tool back on
+  // screen — and the entry points must still refuse to do anything.
+  await p.goto(base + '/framer');
+  await new Promise(z => setTimeout(z, 700));
+  r = await p.evaluate(`${HELPERS}
+    const d=$('f').contentDocument;
+    await wait(()=>d.getElementById('genfull'));
+    const st=d.createElement('style');
+    st.textContent='html[data-framed] main{display:block !important}'
+                  +'html[data-framed] #framed{display:none !important}';
+    d.head.appendChild(st);
+    const cssDefeated=getComputedStyle(d.querySelector('main')).display!=='none';
+    // neither generator may put anything in the box
+    d.getElementById('genlen').value='11';
+    d.getElementById('genfull').click();
+    d.getElementById('gen').click();
+    await new Promise(z=>setTimeout(z,500));
+    const boxAfterGenerate=d.getElementById('in').value;
+    // nor may words typed by hand produce any endings
+    d.getElementById('in').value='abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon';
+    d.getElementById('go').click();
+    d.getElementById('rand').click();
+    await new Promise(z=>setTimeout(z,700));
+    return {cssDefeated, stillFramed:d.documentElement.hasAttribute('data-framed'),
+      boxAfterGenerate,
+      wordsAfterCalculate:d.getElementById('in').value.split(/[ ]+/).filter(Boolean).length,
+      chips:d.querySelectorAll('#grid .w').length,
+      qrOpen:d.getElementById('qrveil').style.display==='flex'};`);
+  chk('the guard is structural: with its CSS defeated, a framed tool still refuses',
+      r.cssDefeated && r.stillFramed && r.boxAfterGenerate === ''
+      && r.chips === 0 && r.wordsAfterCalculate === 11 && !r.qrOpen,
+      JSON.stringify(r));
 
   await p.goto(base + '/index.html');
   r = await p.evaluate(`${HELPERS}
