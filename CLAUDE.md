@@ -54,7 +54,7 @@ BIP-39-logo.svg (source of the inlined header mark + favicon),
    the file and therefore the hash you publish. It is the only place the
    version appears. Notes: a one-line summary, "## New"/"## Fixed" in plain
    English, "still passes 14 of 14", then "## Verify your download" with the
-   shasum block. Current release: v1.6.0.
+   shasum block. Current release: v1.6.1.
 7. Blur rule: anything the generator produces is born hidden (complete AND
    partial seeds); typed words stay visible; state carries through completion;
    the eye flips it. QR + fingerprint appear only when the phrase is complete.
@@ -62,6 +62,12 @@ BIP-39-logo.svg (source of the inlined header mark + favicon),
    close. Fingerprints are never blurred (identify, can't open). Coming back
    via the back button re-blurs whatever is in the box and wipes the QR —
    nothing is ever erased, because a phrase being copied down must not vanish.
+   Modal layout: fingerprint sits directly under the QR (outside .qrbox, so the
+   blur never covers it), the download warning directly under that, then two
+   sentences with the longer explanation folded into a <details>. The card is a
+   panel, not a page — keep it short. .qrveil scrolls and .qrcard uses
+   margin:auto, because a centred flex item taller than the screen has its top
+   clipped unreachably, which puts the close button off a phone.
 8. CNAME (myseedphrase.app) and .nojekyll must never be deleted.
 9. Candidate list reads top-to-bottom then left-to-right (CSS columns:9rem,
    not a grid). No horizontal overflow 320–1440px. Tooltips are pinned to the
@@ -74,9 +80,14 @@ BIP-39-logo.svg (source of the inlined header mark + favicon),
     internals) keep their precision. No keyboard shortcuts (removed
     deliberately). Minimal repo: ask before adding any file.
 11. Anything that puts the seed somewhere it outlives the tab must say so, in
-    the register of the clipboard warning. Saving the SeedQR names the file,
-    says the picture IS the seed, and warns that downloads folders are often
-    synced to iCloud or OneDrive.
+    the register of the clipboard warning. Copying may warn after the fact —
+    a clipboard entry fades — but saving must not: the download button writes
+    nothing on the first press. It shows the warning in red (--red-ink, not
+    the dim .hint colour), names the file, says the picture IS the seed, warns
+    that downloads folders are often synced to iCloud or OneDrive, and waits
+    for a second press on "Save it anyway". That button is deliberately NOT
+    focused, so a reflexive second Enter cannot save the file. Closing the
+    modal forgets the acknowledgement, like every other reveal here.
 12. The page refuses to be framed. frame-ancestors only works as a real HTTP
     header and GitHub Pages cannot send one, so a pre-paint script checks
     window.top !== window.self, fails closed, and withholds the tool. The
@@ -85,13 +96,14 @@ BIP-39-logo.svg (source of the inlined header mark + favicon),
 
 ## How to verify + release
 
-    node verify.js            # 53 checks: drives real Chrome headless, checks
+    node verify.js            # 55 checks: drives real Chrome headless, checks
                               # the page against an INDEPENDENT BIP-39 +
                               # fingerprint implementation, both origins,
                               # layout 320–1440, blur semantics,
                               # no-scroll-on-generate, links, frame guard
                               # (including a sandboxed frame), blur-on-return,
-                              # close-mid-open, download warning
+                              # close-mid-open, the two-press download gate,
+                              # modal reachable on a short screen
     node verify.js --calibrate  # only when assess() changes
 
 Page self-test must read 14 of 14 (file:// and http).

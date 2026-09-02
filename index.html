@@ -182,6 +182,26 @@
   button.primary{background:var(--orange);border-color:var(--orange);color:#000}
   button.primary:hover{background:var(--gold);border-color:var(--gold);color:#000}
   .hint{font-size:.78rem;color:var(--dim);margin-top:.9rem;letter-spacing:.02em}
+  /* Saving is the only thing on this page that leaves the seed behind after
+     the tab is shut, so its warning is not dim like the rest — it is red, and
+     it is read before anything is written, not after. */
+  /* Its own class on purpose: .warn is the full-width offline banner, whose
+     1.6rem padding and 2.6rem margins bloat a panel this size. It sits high in
+     the card, under the QR and its fingerprint, not buried at the bottom. */
+  #qrdlhint.dlwarn{color:var(--red-ink);border:1px solid var(--red-ink);
+    border-radius:10px;padding:.7rem .8rem;margin-top:.8rem;
+    background:rgba(248,113,113,.07)}
+  /* the modal is a panel, not a page: the shared details/summary sizes are
+     tuned for body copy and read as shouting in here */
+  .qrcard .hint details{margin-top:.75rem}
+  .qrcard .hint details p{font-size:.78rem;line-height:1.7;margin-top:.55rem}
+  .qrcard summary{font-size:.66rem;letter-spacing:.12em}
+  #qrdlgo{display:block;margin-top:.75rem;font-family:var(--sans);font-size:.72rem;
+    font-weight:700;letter-spacing:.14em;text-transform:uppercase;line-height:1;
+    padding:.65rem 1rem;border-radius:9px;cursor:pointer;
+    border:1px solid var(--red-ink);background:transparent;color:var(--red-ink)}
+  #qrdlgo:hover{background:var(--red-ink);color:var(--bg)}
+  #qrdlgo:focus-visible{outline:2px solid var(--red-ink);outline-offset:2px}
   select{font-family:var(--sans);font-size:.82rem;font-weight:700;letter-spacing:.08em;
     text-transform:uppercase;padding:.7rem 2.2rem .7rem .8rem;border-radius:9px;cursor:pointer;
     border:1px solid var(--line);color:var(--muted);max-width:100%;
@@ -246,10 +266,16 @@
   .w .i{font-size:11px;color:var(--dim);letter-spacing:.04em}
   .w.sel .i{color:var(--accent-ink);opacity:.7}
   /* ---- SeedQR modal ---- */
+  /* overflow-y so a short screen can reach the whole card; margin:auto rather
+     than align-items alone, because a centred flex item taller than its parent
+     has its top cut off with no way to scroll to it — which would put the close
+     button off-screen on a phone */
   .qrveil{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.65);
-    display:flex;align-items:center;justify-content:center;padding:1.2rem}
+    display:flex;align-items:center;justify-content:center;padding:1.2rem;
+    overflow-y:auto}
   .qrcard{background:var(--bg);border:1px solid var(--line);border-radius:18px;
-    padding:clamp(1.2rem,3vw,1.8rem);max-width:23rem;width:100%;box-shadow:var(--shadow)}
+    padding:clamp(1.2rem,3vw,1.8rem);max-width:23rem;width:100%;margin:auto;
+    box-shadow:var(--shadow)}
   .qrhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
   .qrhead .h{margin-bottom:0}
   button.qrx{padding:.1rem .5rem .25rem;font-size:1.25rem;line-height:1;font-weight:400;
@@ -804,15 +830,21 @@ try{if(window.top!==window.self)document.documentElement.setAttribute("data-fram
       </div>
       <div class="qrbox" id="qrbox"><canvas id="qrcanvas" width="1" height="1"></canvas></div>
       <div class="qrfp">Master fingerprint&ensp;<b id="qrfp">…</b></div>
-      <div class="hint">A standard SeedQR — if your hardware wallet can scan one in, it
-        imports this seed directly, with nothing typed on the device. <b>Whoever scans this
-        owns the wallet</b>, and any camera in the room can. Reveal it only for your scanner,
-        and close it once scanned. Downloading saves the SeedQR — <b>which is the seed</b> —
-        as a picture on this computer; delete the file once it has served its purpose. The
-        fingerprint is not a secret: after scanning, your wallet should show the same eight
-        characters (assuming no BIP-39 passphrase) — if it differs, the wallet did not read
-        this seed.</div>
-      <div class="hint" id="qrdlhint" style="display:none"></div>
+      <div class="hint" id="qrdlhint" style="display:none" aria-live="polite">
+        <span id="qrdlmsg"></span>
+        <button type="button" id="qrdlgo" style="display:none">Save it anyway</button>
+      </div>
+      <div class="hint"><b>Whoever scans this owns the wallet</b>, and any camera in the room
+        can. Reveal it only for your scanner, and close it once scanned.
+        <details>
+          <summary>What it is, and the fingerprint</summary>
+          <p>A standard SeedQR: a hardware wallet that can scan one imports this seed
+          directly, with nothing typed on the device.</p>
+          <p>The fingerprint is not a secret. After scanning, your wallet should show these
+          same eight characters (assuming no BIP-39 passphrase). If it differs, the wallet
+          did not read this seed.</p>
+        </details>
+      </div>
     </div>
   </div>
 
@@ -820,7 +852,7 @@ try{if(window.top!==window.self)document.documentElement.setAttribute("data-fram
     <div class="l">MY SEED PHRASE <span>· BIP-39 CHECKSUM CALCULATOR</span></div>
     <!-- bump the version on every release: it lets a saved copy be compared
          against the repo's releases -->
-    <div class="r">v1.6.0 · RUNS OFFLINE</div>
+    <div class="r">v1.6.1 · RUNS OFFLINE</div>
     <details class="creds">
       <summary>Credits</summary>
       <div class="prov">
@@ -3891,13 +3923,34 @@ function qrHide() {
   c.width = c.height = 1;               // wipe, so the secret does not linger off-screen
   $("qrfp").textContent = "…";
   $("qrdlhint").style.display = "none";
+  $("qrdlhint").className = "hint";
+  $("qrdlgo").style.display = "none";
+  $("qrdlmsg").textContent = "";
   lastQR = null;
 }
 let lastQR = null;
 // A high-resolution copy for saving: ~2000px on a side, drawn fresh from the
 // same matrix the modal shows — the identical SeedQR, just bigger. The file
 // holds the seed; the hint tells the user to delete it after use.
+// Copy can answer after the fact because a clipboard entry fades; a file does
+// not. So the download button does not download: it warns, in red, and waits
+// for a second press that only means one thing.
 $("qrdl").onclick = () => {
+  if (!lastQR) return;
+  $("qrdlhint").style.display = "block";
+  $("qrdlhint").className = "hint dlwarn";
+  $("qrdlmsg").textContent = "\u26a0\ufe0e Saving writes seedqr.png to this computer. "
+    + "That picture is the seed \u2014 anything that can read the folder can take the "
+    + "wallet, and a downloads folder is often copied up to iCloud or OneDrive without "
+    + "being asked.";
+  $("qrdlgo").style.display = "block";
+  // deliberately NOT focused: focus here would let a second Enter on the
+  // download button save the file by reflex, which is the thing being guarded
+  // against. The warning is announced by aria-live, and the button is one tab
+  // away for anyone using the keyboard.
+};
+
+$("qrdlgo").onclick = () => {
   if (!lastQR) return;
   const n = lastQR.getModuleCount(), quiet = 4;
   const scale = Math.ceil(2048 / (n + quiet * 2));
@@ -3918,13 +3971,9 @@ $("qrdl").onclick = () => {
     a.click();
     URL.revokeObjectURL(u);
     c.width = c.height = 1;             // wipe the off-screen drawing
-    // Copy answers the user; downloading writes a file that outlives the tab,
-    // so it should answer louder, not stay silent.
-    $("qrdlhint").style.display = "block";
-    $("qrdlhint").textContent = "\u26a0\ufe0e Saved as seedqr.png on this computer. That "
-      + "picture is the seed \u2014 anything that can read the folder can take the wallet, and "
-      + "a downloads folder is often copied up to iCloud or OneDrive without being asked. "
-      + "Delete it as soon as it has done its job.";
+    $("qrdlgo").style.display = "none";
+    $("qrdlmsg").textContent = "\u26a0\ufe0e Saved as seedqr.png on this computer. That "
+      + "picture is the seed. Delete it as soon as it has done its job.";
   }, "image/png");
 };
 // Every open starts blurred — the reveal is for the moment a scanner is

@@ -652,17 +652,54 @@ async function guardChecks(browser, base) {
 
   r = await p.evaluate(`${HELPERS}
     const before=$('qrdlhint').style.display;
-    $('qrdl').click();
-    await wait(()=>$('qrdlhint').style.display==='block', 4000);
-    const t=$('qrdlhint').textContent;
+    const dim=getComputedStyle($('qrdlhint')).color;
+    $('qrdl').click();                                  // first press: warn only
+    if(!await wait(()=>$('qrdlhint').style.display==='block', 4000))
+      return {err:'no warning on the first press'};
+    const warn={msg:$('qrdlmsg').textContent, red:getComputedStyle($('qrdlhint')).color,
+      isWarnClass:$('qrdlhint').classList.contains('dlwarn'),
+      askedToConfirm:$('qrdlgo').style.display!=='none'};
+    $('qrdlgo').click();                                // second press: write it
+    if(!await wait(()=>/Saved as/.test($('qrdlmsg').textContent), 4000))
+      return {err:'the confirm press never saved'};
+    const saved={msg:$('qrdlmsg').textContent, buttonGone:$('qrdlgo').style.display==='none'};
     $('qrclose').click();
-    return {before, shown:$('qrdlhint').style.display!=='none'||t.length>0,
-      namesFile:t.indexOf('seedqr.png')>-1, saysItIsTheSeed:t.indexOf('is the seed')>-1,
-      warnsAboutSync:/iCloud|OneDrive/.test(t),
-      clearedOnClose:$('qrdlhint').style.display==='none'};`);
-  chk('saving the SeedQR to disk says so, and says what the file is',
-      r.before === 'none' && r.shown && r.namesFile && r.saysItIsTheSeed
-      && r.warnsAboutSync && r.clearedOnClose, JSON.stringify(r));
+    return {before, dim, warn, saved,
+      clearedOnClose:$('qrdlhint').style.display==='none'
+        && !$('qrdlhint').classList.contains('dlwarn') && $('qrdlmsg').textContent===''};`);
+  chk('saving warns in red first, and writes nothing on that press', !r.err
+      && r.before === 'none' && r.warn.isWarnClass && r.warn.red !== r.dim
+      && r.warn.askedToConfirm && !/Saved as/.test(r.warn.msg)
+      && /seedqr\.png/.test(r.warn.msg) && /is the seed/.test(r.warn.msg)
+      && /iCloud|OneDrive/.test(r.warn.msg),
+      r.err || `${r.warn && r.warn.red} vs dim ${r.dim}`);
+  chk('only the second, deliberate press writes the file — and closing forgets it',
+      !r.err && r.saved.buttonGone && /seedqr\.png/.test(r.saved.msg)
+      && r.clearedOnClose, r.err || JSON.stringify(r.saved));
+
+  // The card grows when the warning shows and the disclosure opens. A centred
+  // flex item taller than its parent has its top clipped with no way to reach
+  // it, which would put the close button off a phone screen.
+  await p.setViewport(375, 667);
+  r = await p.evaluate(`${HELPERS}
+    $('clr').click();
+    $('genlen').value='11'; $('genfull').click();
+    if(!await wait(()=>$('in').classList.contains('shield'))) return {err:'genfull timeout'};
+    $('inqr').click();
+    if(!await wait(()=>$('qrcanvas').width>1)) return {err:'QR never drew'};
+    $('qrdl').click();
+    document.querySelector('.qrcard details').open = true;
+    await new Promise(z=>setTimeout(z,250));
+    const veil=$('qrveil'), card=document.querySelector('.qrcard');
+    const head=document.querySelector('.qrhead').getBoundingClientRect();
+    return {tall: card.getBoundingClientRect().height > innerHeight,
+      headOnScreen: head.top >= 0,
+      closeReachable: $('qrclose').getBoundingClientRect().top >= 0,
+      scrollable: veil.scrollHeight > veil.clientHeight};`);
+  chk('a card taller than a phone screen can still be scrolled to its close button',
+      !r.err && r.tall && r.headOnScreen && r.closeReachable && r.scrollable,
+      r.err || JSON.stringify(r));
+  await p.setViewport(1280, 900);
 
   await p.close();
 }
