@@ -25,7 +25,7 @@ RIPEMD-160 (see invariants). No build, no dependencies, no backend.
 verify.js (repo root) is the external test harness — single file, no deps.
 Other files: README.md, SECURITY.md, LICENSE, CNAME, .nojekyll,
 BIP-39-logo.svg (source of the inlined header mark + favicon),
-.well-known/security.txt, .gitignore, CLAUDE.md.
+.well-known/security.txt, .gitignore, CLAUDE.md, .githooks/pre-push.
 
 ## Invariants — do not break
 
@@ -124,12 +124,21 @@ Run node verify.js before tagging, always. v1.5.2 shipped with 7 of its own
 checks failing; six were the harness lagging behind new features, one was a
 real bug that reached users.
 
-The primary machine has a .git/hooks/pre-push that runs verify.js and refuses
-the push if it fails, but only when the push carries index.html or verify.js.
-Git hooks are NOT tracked, so a fresh clone or a second machine has no such
-protection — check for it rather than assuming it. Override with --no-verify.
-It checks the files on disk, not the commit being pushed, and says so when the
-working tree is dirty.
+.githooks/pre-push runs verify.js and refuses the push if it fails, but only
+when the push carries index.html or verify.js — a docs-only push is not worth
+90 seconds. A tag push checks everything the tag carries, so cutting a release
+always verifies. Override with --no-verify. It checks the files on disk, not
+the commit being pushed, and says so when the working tree is dirty.
+
+The hook is tracked, but git will NOT enable it on its own: a clone that ran
+hooks straight out of the box would be remote code execution. So each clone
+needs, once:
+
+    git config core.hooksPath .githooks
+
+Check `git config core.hooksPath` on a machine before trusting that the hook is
+live. The flip side of tracking it: a git pull can now change a script that
+runs on your machine at push time. Read the diff on that file like any other.
 
 ## Standing items
 
@@ -142,8 +151,10 @@ working tree is dirty.
   may drop — ~$59 backorder if wanted.
 - Sister app: seQRets/Passphrase at mypassphrase.app (footer links to it);
   consider a reciprocal link there.
-- Real-device test still open: scan a generated SeedQR with a hardware wallet
-  and confirm the shown master fingerprint matches on-device.
+- Real-device test DONE (2 Sep 2026): a generated SeedQR was scanned by a
+  hardware wallet, imported, and the master fingerprint shown on-device matched
+  the one on the page. The end-to-end claim the whole SeedQR feature rests on
+  is confirmed against real hardware, not just against verify.js.
 - Footer: Source on GitHub · ₿ Donate (coinos.io/seQRets/receive) ·
   ↗ mypassphrase.app — verify.js pins all three exactly, plus the in-page
   "Find my last word" jump link.

@@ -1,0 +1,60 @@
+#!/bin/sh
+# Refuse to publish a page that fails its own checks.
+#
+# GitHub Pages serves main, so a push IS a deploy: this is the last moment
+# before index.html reaches people who were told to compare its hash against
+# the release and stop if it differs. v1.5.2 went out with 7 of its own checks
+# failing because nothing ran them.
+#
+# Only runs when index.html or verify.js is actually going up — a docs-only
+# push is not worth 90 seconds. To skip deliberately: git push --no-verify
+
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+
+relevant=""
+while read -r local_ref local_sha remote_ref remote_sha; do
+  # an all-zero local sha means the ref is being deleted; nothing to check
+  case "$local_sha" in *[!0]*) : ;; *) continue ;; esac
+
+  case "$remote_sha" in
+    *[!0]*) files=$(git diff --name-only "$remote_sha" "$local_sha" 2>/dev/null) ;;
+    # new branch or tag: no remote side to diff against, so check everything
+    # it carries rather than guessing
+    *)      files=$(git ls-tree -r --name-only "$local_sha" 2>/dev/null) ;;
+  esac
+  # if the range could not be worked out, err towards running the checks
+  [ -z "$files" ] && files="index.html"
+
+  case "$files" in
+    *index.html*|*verify.js*) relevant="yes" ;;
+  esac
+done
+
+[ -z "$relevant" ] && exit 0
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-push: node not found, so verify.js cannot run." >&2
+  echo "pre-push: install node, or push with --no-verify if you are sure." >&2
+  exit 1
+fi
+
+# verify.js reads the files on disk, not the commit being pushed. If those
+# differ, it is checking something other than what is about to go live.
+if ! git diff --quiet HEAD 2>/dev/null; then
+  echo "pre-push: NOTE - the working tree differs from HEAD. verify.js checks"
+  echo "pre-push: the files on disk, not the commit being pushed."
+fi
+
+echo "pre-push: index.html or verify.js is going up - running verify.js..."
+if node verify.js; then
+  echo "pre-push: checks passed."
+  exit 0
+fi
+
+echo ""
+echo "pre-push: VERIFY FAILED - push refused."
+echo "pre-push: Pages serves main, so this would put a failing page live and"
+echo "pre-push: break the hash check README step 1 tells people to trust."
+echo "pre-push: Fix it, or override with: git push --no-verify"
+exit 1
