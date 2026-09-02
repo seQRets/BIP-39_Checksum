@@ -124,6 +124,13 @@ Run node verify.js before tagging, always. v1.5.2 shipped with 7 of its own
 checks failing; six were the harness lagging behind new features, one was a
 real bug that reached users.
 
+The primary machine has a .git/hooks/pre-push that runs verify.js and refuses
+the push if it fails, but only when the push carries index.html or verify.js.
+Git hooks are NOT tracked, so a fresh clone or a second machine has no such
+protection — check for it rather than assuming it. Override with --no-verify.
+It checks the files on disk, not the commit being pushed, and says so when the
+working tree is dirty.
+
 ## Standing items
 
 - Neither myseedphrase.app nor bip39checksum.com may ever lapse. The
