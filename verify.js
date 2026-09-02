@@ -350,6 +350,9 @@ async function pageChecks(browser, fileUrl, httpUrl) {
     if(!await wait(()=>$('in').classList.contains('shield'))) return {err:'genfull timeout'};
     out.seed12 = $('in').value.trim();
     $('inqr').click();
+    // Opening is async (it re-checks the checksum first), so for a moment
+    // after the click the canvas is still the 1px wipe from the last close.
+    if(!await wait(()=>$('qrcanvas').width>1)) return {err:'12-word QR never drew'};
     out.open12 = $('qrveil').style.display!=='none';
     out.blur12 = $('qrbox').classList.contains('shield');
     out.canvas12 = $('qrcanvas').width;
@@ -357,19 +360,24 @@ async function pageChecks(browser, fileUrl, httpUrl) {
     $('qrclose').click();
     out.closed = $('qrveil').style.display==='none';
     out.wiped = $('qrcanvas').width===1;
-    $('inqr').click(); out.reblurs = $('qrbox').classList.contains('shield');
+    $('inqr').click();
+    if(!await wait(()=>$('qrcanvas').width>1)) return {err:'QR never redrew'};
+    out.reblurs = $('qrbox').classList.contains('shield');
     dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
     out.escCloses = $('qrveil').style.display==='none';
     $('clr').click(); await wait(()=>$('out').style.display==='none');
     $('genlen').value='23'; $('genfull').click();
     if(!await wait(()=>$('in').classList.contains('shield'))) return {err:'genfull 23 timeout'};
-    $('inqr').click(); out.canvas24 = $('qrcanvas').width; $('qrclose').click();
+    $('inqr').click();
+    if(!await wait(()=>$('qrcanvas').width>1)) return {err:'24-word QR never drew'};
+    out.canvas24 = $('qrcanvas').width; $('qrclose').click();
     $('clr').click(); await wait(()=>$('out').style.display==='none');
     $('in').value='abandon '.repeat(11).trim(); $('go').click();
     await wait(()=>document.querySelectorAll('#grid .w').length===128);
     document.querySelector('#grid .w').click();
     await wait(()=>$('inqr').style.display!=='none');
     $('inqr').click();
+    if(!await wait(()=>$('qrcanvas').width>1)) return {err:'manual QR never drew'};
     out.manualOpen = $('qrveil').style.display!=='none';
     out.manualBlur = $('qrbox').classList.contains('shield');
     $('qrclose').click();
@@ -419,6 +427,7 @@ async function pageChecks(browser, fileUrl, httpUrl) {
         && $('infpv').textContent!==out.boxFp, 8000)) return {err:'box fingerprint did not refresh'};
     out.boxFp2 = $('infpv').textContent;
     $('inqr').click();
+    if(!await wait(()=>$('qrcanvas').width>1)) return {err:'QR never drew'};
     if(!await wait(()=>/^[0-9a-f]{8}$/.test($('qrfp').textContent), 8000)) return {err:'fingerprint never shown'};
     out.shown = $('qrfp').textContent;
     out.modalAgrees = out.shown === out.boxFp2;
@@ -474,12 +483,19 @@ async function pageChecks(browser, fileUrl, httpUrl) {
   console.log('\n--- how it looks ---');
   const links = await p.evaluate(
     `return [...document.querySelectorAll('a')].map(a=>({href:a.href,target:a.target,rel:a.rel,w:a.getBoundingClientRect().width}));`);
-  chk('the three outbound links are present and safe',
-    links.length === 3 &&
-    links.some(l => l.href === 'https://github.com/seQRets/My-Seed-Phrase') &&
-    links.some(l => l.href === 'https://coinos.io/seQRets/receive') &&
-    links.some(l => l.href === 'https://mypassphrase.app/') &&
-    links.every(l => l.target === '_blank' && /noopener/.test(l.rel) && /noreferrer/.test(l.rel) && l.w > 40));
+  // Outbound links must open in a new tab and give the destination nothing.
+  // The in-page jump link is a different animal: it stays on the page, so it
+  // wants no target and needs no rel.
+  const outbound = links.filter(l => /^https:/.test(l.href));
+  const inpage = links.filter(l => !/^https:/.test(l.href));
+  chk('the three outbound links are safe, the in-page link stays in the page',
+    outbound.length === 3 &&
+    outbound.some(l => l.href === 'https://github.com/seQRets/My-Seed-Phrase') &&
+    outbound.some(l => l.href === 'https://coinos.io/seQRets/receive') &&
+    outbound.some(l => l.href === 'https://mypassphrase.app/') &&
+    outbound.every(l => l.target === '_blank' && /noopener/.test(l.rel) && /noreferrer/.test(l.rel) && l.w > 40) &&
+    inpage.length === 1 && /#inputcard$/.test(inpage[0].href) && inpage[0].target === '',
+    `${outbound.length} outbound, ${inpage.length} in-page`);
 
   await p.evaluate(`${HELPERS} $('in').value='abandon '.repeat(11).trim(); $('go').click();
     await wait(()=>$('out').style.display==='block'&&document.querySelectorAll('#grid .w').length===128);
