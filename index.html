@@ -840,6 +840,12 @@ try{if(window.top!==window.self)document.documentElement.setAttribute("data-fram
           <summary>What it is, and the fingerprint</summary>
           <p>A standard SeedQR: a hardware wallet that can scan one imports this seed
           directly, with nothing typed on the device.</p>
+          <p><b>A phone will show numbers, not words.</b> That is what a SeedQR is: four
+          digits for each word, giving its place in the standard word list — 48 digits
+          for a twelve-word seed, 96 for twenty-four. Those numbers <b>are</b> your
+          words. A signing device turns them straight back into the phrase, so load this
+          from your wallet's own seed-import screen; a plain camera app will only ever
+          show you the digits.</p>
           <p>The fingerprint is not a secret. After scanning, your wallet should show these
           same eight characters (assuming no BIP-39 passphrase). If it differs, the wallet
           did not read this seed.</p>
@@ -852,7 +858,7 @@ try{if(window.top!==window.self)document.documentElement.setAttribute("data-fram
     <div class="l">MY SEED PHRASE <span>· BIP-39 CHECKSUM CALCULATOR</span></div>
     <!-- bump the version on every release: it lets a saved copy be compared
          against the repo's releases -->
-    <div class="r">v1.6.2 · RUNS OFFLINE</div>
+    <div class="r">v1.6.3 · RUNS OFFLINE</div>
     <details class="creds">
       <summary>Credits</summary>
       <div class="prov">

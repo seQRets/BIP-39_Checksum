@@ -54,7 +54,7 @@ BIP-39-logo.svg (source of the inlined header mark + favicon),
    the file and therefore the hash you publish. It is the only place the
    version appears. Notes: a one-line summary, "## New"/"## Fixed" in plain
    English, "still passes 14 of 14", then "## Verify your download" with the
-   shasum block. Current release: v1.6.2.
+   shasum block. Current release: v1.6.3.
 7. Blur rule: anything the generator produces is born hidden (complete AND
    partial seeds); typed words stay visible; state carries through completion;
    the eye flips it. QR + fingerprint appear only when the phrase is complete.
@@ -65,7 +65,10 @@ BIP-39-logo.svg (source of the inlined header mark + favicon),
    Modal layout: fingerprint sits directly under the QR (outside .qrbox, so the
    blur never covers it), the download warning directly under that, then two
    sentences with the longer explanation folded into a <details>. The card is a
-   panel, not a page — keep it short. .qrveil scrolls and .qrcard uses
+   panel, not a page — keep it short. The disclosure MUST keep saying that a
+   phone shows numbers rather than words, and that those numbers are the words:
+   a scanned SeedQR reads as 48 unexplained digits and looks exactly like a
+   broken export, which cost a real user an evening. .qrveil scrolls and .qrcard uses
    margin:auto, because a centred flex item taller than the screen has its top
    clipped unreachably, which puts the close button off a phone.
 8. CNAME (myseedphrase.app) and .nojekyll must never be deleted.
@@ -103,7 +106,7 @@ BIP-39-logo.svg (source of the inlined header mark + favicon),
 
 ## How to verify + release
 
-    node verify.js            # 52 checks: drives real Chrome headless, checks
+    node verify.js            # 53 checks: drives real Chrome headless, checks
                               # the page against an INDEPENDENT BIP-39 +
                               # fingerprint implementation, both origins,
                               # layout 320/390/1440, blur semantics,
@@ -111,7 +114,8 @@ BIP-39-logo.svg (source of the inlined header mark + favicon),
                               # (including a sandboxed frame), blur-on-return,
                               # close-mid-open, the two-press download gate,
                               # modal reachable on a short screen, and the
-                              # frame guard holding with its CSS defeated
+                              # frame guard holding with its CSS defeated, and
+                              # the panel explaining a SeedQR's digits
     node verify.js --calibrate  # only when assess() changes
 
 Page self-test must read 14 of 14 (file:// and http).
@@ -119,6 +123,11 @@ Release: bump the footer version → commit → push → poll Pages build FOR TH
 COMMIT (not just "built") → live hash == local → tag with hash in message →
 gh release create vX.Y.Z index.html --notes-file … → re-download asset +
 fresh-clone verify.js.
+
+verify.js runs page code through template literals, so a backslash in a regex
+there is eaten by the literal before JS ever sees it: /\s+/ becomes /s+/ and
+silently strips the letter s instead of whitespace. Double them (/\\s+/), or
+sidestep it with a character class like /[ ]+/. This has bitten twice.
 
 Run node verify.js before tagging, always. v1.5.2 shipped with 7 of its own
 checks failing; six were the harness lagging behind new features, one was a

@@ -714,6 +714,20 @@ async function guardChecks(browser, base) {
       !r.err && r.saved.buttonGone && /seedqr\.png/.test(r.saved.msg)
       && r.clearedOnClose, r.err || JSON.stringify(r.saved));
 
+  // A real scare: a phone camera shows a SeedQR's 48 digits and reports no
+  // words, which reads exactly like a broken export. The panel has to say so
+  // before someone concludes the tool lost their seed.
+  r = await p.evaluate(`${HELPERS}
+    const d=document.querySelector('.qrcard details');
+    // NB: this string is a template literal, so a lone backslash is eaten -
+    // /\s+/ here would strip the letter s. Double it.
+    const t=d ? d.textContent.replace(/\\s+/g,' ') : '';
+    return {found:!!d, numbers:/numbers/i.test(t), digits:/digits/i.test(t),
+      count48:/48/.test(t), areYourWords:/are your words/i.test(t)};`);
+  chk('the panel warns that a phone shows numbers, and that they are the words',
+      r.found && r.numbers && r.digits && r.count48 && r.areYourWords,
+      JSON.stringify(r));
+
   // The card grows when the warning shows and the disclosure opens. A centred
   // flex item taller than its parent has its top clipped with no way to reach
   // it, which would put the close button off a phone screen.
